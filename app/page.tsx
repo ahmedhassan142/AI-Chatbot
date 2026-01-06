@@ -1,65 +1,98 @@
-import Image from "next/image";
+import ChatContainer from '@/components/ChatInterface';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Brain, Zap, Shield, Globe } from 'lucide-react';
 
 export default function Home() {
+  const features = [
+    {
+      icon: <Zap className="h-5 w-5" />,
+      title: 'Real-time Streaming',
+      description: 'Responses stream token-by-token for natural conversation flow',
+    },
+    {
+      icon: <Brain className="h-5 w-5" />,
+      title: 'Advanced AI',
+      description: 'Powered by Grok with wit, humor, and deep reasoning',
+    },
+    {
+      icon: <Shield className="h-5 w-5" />,
+      title: 'Secure & Private',
+      description: 'Your conversations are processed securely',
+    },
+    {
+      icon: <Globe className="h-5 w-5" />,
+      title: 'Modern Interface',
+      description: 'Clean, responsive design with smooth animations',
+    },
+  ];
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+      <div className="container mx-auto px-4 py-12">
+        <div className="text-center mb-12">
+          <h1 className="text-5xl font-bold tracking-tight mb-4 bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+            Grok AI Chatbot
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            A full-stack AI assistant built with Next.js, TypeScript, and xAI's Grok API.
+            Experience intelligent conversations with modern, professional design.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          {features.map((feature, index) => (
+            <Card key={index} className="border-2 hover:border-primary/50 transition-colors">
+              <CardHeader className="pb-3">
+                <div className="p-2 bg-primary/10 rounded-lg w-fit">
+                  <div className="text-primary">{feature.icon}</div>
+                </div>
+                <CardTitle className="text-lg">{feature.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CardDescription>{feature.description}</CardDescription>
+              </CardContent>
+            </Card>
+          ))}
         </div>
-      </main>
+
+        <div className="mb-12">
+          <ChatContainer />
+        </div>
+
+        <Card className="border-dashed">
+          <CardHeader>
+            <CardTitle className="text-center">Getting Started</CardTitle>
+            <CardDescription className="text-center">
+              Follow these steps to run the chatbot
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="text-center p-4">
+                <div className="text-2xl font-bold text-primary mb-2">1</div>
+                <h3 className="font-semibold mb-2">Get API Key</h3>
+                <p className="text-sm text-muted-foreground">
+                  Sign up at x.ai/api and get your free API key
+                </p>
+              </div>
+              <div className="text-center p-4">
+                <div className="text-2xl font-bold text-primary mb-2">2</div>
+                <h3 className="font-semibold mb-2">Configure</h3>
+                <p className="text-sm text-muted-foreground">
+                  Add your API key to the .env.local file
+                </p>
+              </div>
+              <div className="text-center p-4">
+                <div className="text-2xl font-bold text-primary mb-2">3</div>
+                <h3 className="font-semibold mb-2">Start Chatting</h3>
+                <p className="text-sm text-muted-foreground">
+                  Run the development server and begin your conversation
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
