@@ -2,8 +2,8 @@
 
 import { useState, useCallback } from 'react'
 import { Message, Conversation } from '@/types'
-import { StorageService } from '@/lib/storage'
-import { generateId } from '@/lib/utils'
+import { StorageService } from '../lib/storage'
+import { generateId } from '../lib/utils'
 
 export function useChat() {
   const [messages, setMessages] = useState<Message[]>([])

@@ -1,7 +1,7 @@
 // app/api/auth/login/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { User } from '@/lib/models';
+import { connectDB } from '../../../../lib/db';
+import { User } from '../../../../lib/models';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 

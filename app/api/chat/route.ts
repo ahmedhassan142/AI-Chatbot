@@ -1,9 +1,9 @@
 // app/api/chat/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { Conversation } from '@/lib/models';
-import { verifyAccessToken } from '@/lib/auth';
-import { GrokClient } from '@/lib/grokClient';
+import { connectDB } from '../../../lib/db';
+import { Conversation } from '../../../lib/models';
+import { verifyAccessToken } from '../../../lib/auth';
+import { GrokClient } from '../../../lib/grokClient';
 
 export async function POST(request: NextRequest) {
   try {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAccessToken } from '@/lib/auth';
+import { verifyAccessToken } from '../../lib/auth';
 
 export async function authMiddleware(req: NextRequest) {
   const authHeader = req.headers.get('authorization');

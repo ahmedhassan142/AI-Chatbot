@@ -3,7 +3,7 @@
 
 import { Suspense } from 'react';
 import ConfirmationContent from './confirmationcontent';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../../components/ui/card';
 import { CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 
 export default function ConfirmationPage() {

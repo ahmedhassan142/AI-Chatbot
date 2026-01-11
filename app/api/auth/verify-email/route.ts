@@ -1,6 +1,6 @@
 // app/api/auth/verify-email/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { User } from '@/lib/models';
+import { User } from '../../../../lib/models';
 import mongoose from 'mongoose';
 
 export async function GET(request: NextRequest) {

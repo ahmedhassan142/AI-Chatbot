@@ -2,7 +2,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { useChat } from '@/app/context/Chatcontext';
+import { useChat } from '../app/context/Chatcontext';
 import { MessageSquare, Clock, Users, Brain } from 'lucide-react';
 
 export function StatsPanel() {

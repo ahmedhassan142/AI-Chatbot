@@ -1,4 +1,4 @@
-import { Conversation, Message } from '@/types';
+import { Conversation, Message } from '../types';
 
 const STORAGE_KEYS = {
   CONVERSATIONS: 'grok_conversations',

@@ -2,8 +2,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+
 import { Users, Building, DollarSign, TrendingUp, Calendar, Activity, User, Mail, Shield, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 

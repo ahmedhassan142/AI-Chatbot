@@ -1,5 +1,5 @@
-import ChatContainer from '@/components/ChatInterface';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import ChatContainer from '../components/ChatInterface';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Brain, Zap, Shield, Globe } from 'lucide-react';
 
 export default function Home() {

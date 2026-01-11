@@ -1,5 +1,5 @@
-import { cn } from '@/lib/utils';
-import { Message } from '@/types';
+import { cn } from '../lib/utils';
+import { Message } from '../types';
 import { Bot, User, Check, Clock } from 'lucide-react';
 
 interface MessageBubbleProps extends Message {

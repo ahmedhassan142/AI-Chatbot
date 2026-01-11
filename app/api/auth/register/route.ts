@@ -1,9 +1,9 @@
 // app/api/auth/register/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import { sendVerificationEmail } from '@/lib/email';
-import { generateVerificationToken } from '@/lib/token';
-import { User } from '@/lib/models';
+import { sendVerificationEmail } from '../../../../lib/email';
+import { generateVerificationToken } from '../../../../lib/token';
+import { User } from '../../../../lib/models';
 import mongoose from 'mongoose';
 
 export async function POST(request: NextRequest) {

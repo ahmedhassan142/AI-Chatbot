@@ -2,15 +2,15 @@
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { ChatMessage, ChatSession } from '@/types';
-import { sendChatMessage } from '@/lib/api';
+import {Message, Conversation } from '@/types';
+import { sendChatMessage } from '../../lib/api';
 
 interface ChatContextType {
-  messages: ChatMessage[];
-  sessions: ChatSession[];
-  activeSession: ChatSession | null;
+  messages: Message[];
+  sessions: Conversation[];
+  activeSession: Conversation | null;
   isGenerating: boolean;
-  addMessage: (content: string, role: ChatMessage['role']) => Promise<void>;
+  addMessage: (content: string, role: Message['role']) => Promise<void>;
   createNewSession: () => void;
   selectSession: (sessionId: string) => void;
   deleteSession: (sessionId: string) => void;
@@ -19,7 +19,7 @@ interface ChatContextType {
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
-  const [sessions, setSessions] = useState<ChatSession[]>([
+  const [sessions, setSessions] = useState<Conversation[]>([
     {
       id: '1',
       title: 'First Conversation',
@@ -36,13 +36,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   ]);
   
-  const [activeSession, setActiveSession] = useState<ChatSession | null>(null);
+  const [activeSession, setActiveSession] = useState<Conversation | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const addMessage = async (content: string, role: ChatMessage['role'] = 'user') => {
+  const addMessage = async (content: string, role: Message['role'] = 'user') => {
     if (!activeSession) return;
 
-    const newMessage: ChatMessage = {
+    const newMessage: Message = {
       id: Date.now().toString(),
       role,
       content,
@@ -50,7 +50,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     };
 
     // Update session with new message
-    const updatedSession: ChatSession = {
+    const updatedSession: Conversation = {
       ...activeSession,
       messages: [...activeSession.messages, newMessage],
       updatedAt: new Date()
@@ -71,14 +71,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           throw new Error(response.error);
         }
 
-        const aiMessage: ChatMessage = {
+        const aiMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
           content: response.content,
           timestamp: new Date()
         };
 
-        const finalSession: ChatSession = {
+        const finalSession: Conversation = {
           ...updatedSession,
           messages: [...updatedSession.messages, aiMessage],
           updatedAt: new Date()
@@ -90,14 +90,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         );
       } catch (error) {
         console.error('Error getting AI response:', error);
-        const errorMessage: ChatMessage = {
+        const errorMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
           content: 'Sorry, I encountered an error. Please try again.',
           timestamp: new Date()
         };
         
-        const errorSession: ChatSession = {
+        const errorSession: Conversation = {
           ...updatedSession,
           messages: [...updatedSession.messages, errorMessage],
           updatedAt: new Date()
@@ -114,7 +114,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   };
 
   const createNewSession = () => {
-    const newSession: ChatSession = {
+    const newSession: Conversation = {
       id: Date.now().toString(),
       title: `Conversation ${sessions.length + 1}`,
       messages: [

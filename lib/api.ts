@@ -1,10 +1,10 @@
 // lib/api.ts
-import { ChatMessage } from '@/types';
+import { Message } from '../types';
 
 const API_BASE_URL = '/api';
 
 export async function sendChatMessage(
-  messages: ChatMessage[],
+  messages: Message[],
   model: string = 'llama-3.3-70b-versatile'
 ): Promise<{ content: string; error?: string }> {
   try {

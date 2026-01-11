@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { Conversation } from '@/lib/models';
-import { verifyAccessToken } from '@/lib/auth';
+import { connectDB } from '../../../lib/db';
+import { Conversation } from '../../../lib/models';
+import { verifyAccessToken } from '../../../lib/auth';
 
 // GET conversations for authenticated user
 export async function GET(req: NextRequest) {

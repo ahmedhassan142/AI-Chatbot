@@ -3,7 +3,7 @@
 
 import { Suspense } from 'react';
 import VerificationPendingContent from './Verificationpendingcontent';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../../components/ui/card';
 import { Mail, Clock } from 'lucide-react';
 
 export default function VerificationPendingPage() {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { User } from '@/lib/models';
+import { connectDB } from '../../../../lib/db';
+import { User } from '../../../../lib/models';
 import crypto from 'crypto';
 
 // In-memory store (use database in production)

@@ -3,7 +3,7 @@
 
 import { Suspense } from 'react';
 import VerifyEmailContent from './verifyemailcontent';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Loader2 } from 'lucide-react';
 
 export default function VerifyEmailPage() {

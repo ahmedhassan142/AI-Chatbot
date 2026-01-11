@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { User } from '@/lib/models';
-import { verifyAccessToken, generateAccessToken } from '@/lib/auth';
+import { connectDB } from '../../../../lib/db';
+import { User } from '../../../../lib/models';
+import { verifyAccessToken, generateAccessToken } from '../../../../lib/auth';
 
 export async function POST(req: NextRequest) {
   try {

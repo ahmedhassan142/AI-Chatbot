@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { User } from '@/lib/models';
-import { verifyAccessToken } from '@/lib/auth';
+import { connectDB } from '../../../lib/db';
+import { User } from '../../../lib/models';
+import { verifyAccessToken } from '../../../lib/auth';
 
 // GET all users (admin only)
 export async function GET(req: NextRequest) {

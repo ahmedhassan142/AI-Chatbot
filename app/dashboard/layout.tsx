@@ -1,8 +1,8 @@
 // app/dashboard/layout.tsx
 import type { Metadata } from 'next';
-import AuthGuard from '@/components/AuthGuard';
+import AuthGuard from '../../components/AuthGuard';
 import Sidebar from '@/components/dahboard sidebar'; // Create this as a dashboard-specific sidebar
-import DashboardSidebar from '@/components/dahboard sidebar';
+import DashboardSidebar from '../../components/dahboard sidebar';
 
 export const metadata: Metadata = {
   title: 'Dashboard - ERP AI System',
