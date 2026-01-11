@@ -1,91 +1,155 @@
+// components/Sidebar.tsx
 'use client';
 
-import { useState } from 'react';
-import { 
-  MessageSquare, 
-  Settings, 
-  History, 
-  Users, 
-  CreditCard, 
-  HelpCircle, 
-  LogOut,
-  ChevronLeft,
-  ChevronRight,
-  Home
-} from 'lucide-react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Button } from '@/components/ui/button';
+import {
+  Home,
+  Users,
+  Building,
+  BarChart3,
+  FileText,
+  Settings,
+  Calendar,
+  MessageSquare,
+  Shield,
+  HelpCircle,
+  Menu,
+  X
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: Home },
-  { href: '/dashboard/conversations', label: 'Conversations', icon: MessageSquare },
-  { href: '/dashboard/settings', label: 'Settings', icon: Settings },
-  { href: '/pricing', label: 'Pricing', icon: CreditCard },
-  { href: '/about', label: 'About', icon: Users },
-  { href: '/help', label: 'Help', icon: HelpCircle },
+  { name: 'Dashboard', href: '/dashboard', icon: Home },
+  { name: 'Users', href: '/dashboard/users', icon: Users },
+  { name: 'Departments', href: '/dashboard/departments', icon: Building },
+  { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
+  { name: 'Reports', href: '/dashboard/reports', icon: FileText },
+  { name: 'Calendar', href: '/dashboard/calendar', icon: Calendar },
+  { name: 'Chat', href: '/dashboard/chat', icon: MessageSquare },
+  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
+];
+
+const bottomItems = [
+  { name: 'Help & Support', href: '/help', icon: HelpCircle },
+  { name: 'Admin', href: '/admin', icon: Shield },
 ];
 
 export default function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const userData = sessionStorage.getItem('userData');
+    if (userData) {
+      setUser(JSON.parse(userData));
+    }
+  }, []);
 
   return (
-    <aside className={cn(
-      "flex flex-col border-r bg-card transition-all duration-300 h-screen sticky top-0",
-      collapsed ? "w-20" : "w-64"
-    )}>
-      <div className="p-6 border-b">
-        <div className="flex items-center justify-between">
-          {!collapsed && (
-            <h2 className="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-              Grok AI
-            </h2>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setCollapsed(!collapsed)}
-            className="ml-auto"
-          >
-            {collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-          </Button>
-        </div>
-      </div>
+    <>
+      {/* Mobile Toggle Button */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="lg:hidden fixed top-4 left-4 z-50"
+        onClick={() => setIsCollapsed(!isCollapsed)}
+      >
+        {isCollapsed ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+      </Button>
 
-      <nav className="flex-1 p-4">
-        <ul className="space-y-2">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href;
-            
-            return (
-              <li key={item.href}>
-                <Link href={item.href}>
-                  <Button
-                    variant={isActive ? "secondary" : "ghost"}
+      {/* Sidebar */}
+      <aside className={cn(
+        "fixed top-0 left-0 z-40 h-screen transition-transform lg:translate-x-0 bg-background border-r",
+        isCollapsed ? "-translate-x-full" : "translate-x-0",
+        "w-64 lg:w-64"
+      )}>
+        <div className="flex h-full flex-col">
+          {/* Logo */}
+          <div className="flex h-16 items-center justify-center border-b px-4">
+            <h1 className="text-xl font-bold">ERP Dashboard</h1>
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex-1 overflow-y-auto py-4">
+            <div className="px-3 space-y-1">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+                
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
                     className={cn(
-                      "w-full justify-start gap-3",
-                      collapsed && "justify-center"
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                      isActive
+                        ? "bg-primary/10 text-primary font-medium"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
                     )}
+                    onClick={() => setIsCollapsed(true)}
                   >
-                    <Icon size={20} />
-                    {!collapsed && <span>{item.label}</span>}
-                  </Button>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
+                    <Icon className="h-5 w-5" />
+                    <span>{item.name}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </nav>
 
-      <div className="p-4 border-t">
-        <Button variant="ghost" className="w-full justify-start gap-3">
-          <LogOut size={20} />
-          {!collapsed && <span>Logout</span>}
-        </Button>
-      </div>
-    </aside>
+          {/* Bottom Items */}
+          <div className="border-t px-3 py-4">
+            {bottomItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href;
+              
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                    isActive
+                      ? "bg-primary/10 text-primary font-medium"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  )}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span>{item.name}</span>
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* User Info */}
+          {user && (
+            <div className="border-t p-4">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                  <span className="text-primary font-bold">
+                    {user.name?.charAt(0) || 'U'}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{user.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </aside>
+
+      {/* Overlay for mobile */}
+      {isCollapsed && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          onClick={() => setIsCollapsed(false)}
+        />
+      )}
+    </>
   );
 }

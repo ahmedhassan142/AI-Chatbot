@@ -1,74 +1,71 @@
+// components/AuthGuard.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
 
-interface AuthGuardProps {
-  children: React.ReactNode;
-}
-
-export default function AuthGuard({ children }: AuthGuardProps) {
+export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const token = sessionStorage.getItem('accessToken');
-        
-        if (!token) {
-          router.push('/auth/login');
-          return;
-        }
-
-        // Verify token with server
-        const response = await fetch('/api/auth/verify', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-
-        if (response.ok) {
-          setIsAuthenticated(true);
-        } else {
-          // Try to refresh token
-          const refreshResponse = await fetch('/api/auth/refresh', {
-            method: 'POST',
-          });
-
-          if (refreshResponse.ok) {
-            const { accessToken } = await refreshResponse.json();
-            sessionStorage.setItem('accessToken', accessToken);
-            setIsAuthenticated(true);
-          } else {
-            sessionStorage.removeItem('accessToken');
-            router.push('/auth/login');
-          }
-        }
-      } catch (error) {
-        console.error('Auth check failed:', error);
-        sessionStorage.removeItem('accessToken');
-        router.push('/auth/login');
-      }
-    };
-
     checkAuth();
-  }, [router]);
+  }, []);
 
-  if (isAuthenticated === null) {
+  const checkAuth = () => {
+    const token = sessionStorage.getItem('accessToken');
+    const userData = sessionStorage.getItem('userData');
+    
+    console.log('🔍 AuthGuard checking:', { token, userData });
+    
+    if (!token || !userData) {
+      console.log('❌ No auth data, redirecting to login');
+      router.push('/auth/login');
+      return;
+    }
+    
+    try {
+      const user = JSON.parse(userData);
+      
+      // Additional check: ensure email is verified
+      if (!user.emailVerified) {
+        console.log('❌ Email not verified, redirecting to login');
+        sessionStorage.clear();
+        router.push('/auth/login');
+        return;
+      }
+      
+      setIsAuthenticated(true);
+    } catch (error) {
+      console.error('Failed to parse user data:', error);
+      sessionStorage.clear();
+      router.push('/auth/login');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/30">
-        <div className="text-center space-y-4">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
-          <p className="text-muted-foreground">Verifying authentication...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+          <p className="mt-4 text-muted-foreground">Checking authentication...</p>
         </div>
       </div>
     );
   }
 
   if (!isAuthenticated) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+          <p className="mt-4 text-muted-foreground">Redirecting to login...</p>
+        </div>
+      </div>
+    );
   }
 
   return <>{children}</>;

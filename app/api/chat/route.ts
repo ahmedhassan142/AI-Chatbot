@@ -1,4 +1,4 @@
-// app/api/chat/route.ts (Updated with authentication)
+// app/api/chat/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { Conversation } from '@/lib/models';
@@ -38,6 +38,9 @@ export async function POST(request: NextRequest) {
 
     const grokClient = new GrokClient(apiKey);
     
+    // Extract department safely (provide default)
+    const userDepartment = decoded.department || 'general';
+    
     // Add ERP context to system message
     const systemMessage = {
       role: 'system' as const,
@@ -48,8 +51,7 @@ export async function POST(request: NextRequest) {
       User Context:
       - User ID: ${userId}
       - User Role: ${decoded.role}
-      
-      - Department: ${decoded.department || 'General'}
+      - Department: ${userDepartment}
       
       Always consider business implications and provide actionable insights.
       When analyzing data, suggest next steps and potential optimizations.
@@ -71,8 +73,8 @@ export async function POST(request: NextRequest) {
           role: m.role,
           timestamp: new Date(),
         })),
-        department: decoded.department,
-        tags: ['erp', 'business', decoded.department || 'general'],
+        department: userDepartment,
+        tags: ['erp', 'business', userDepartment],
       });
       
       await conversation.save();

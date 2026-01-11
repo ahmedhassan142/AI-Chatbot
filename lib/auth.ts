@@ -1,34 +1,64 @@
+// lib/auth.ts
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_ACCESS_SECRET || 'your-secret-key-change-this';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-change-this';
+const JWT_SECRET = process.env.JWT_SECRET || 'ac2a0fcf731e755942612d8e2baa838654e5fc2881ab542fc694dd0ed53177c3';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
-export interface TokenPayload {
+export interface JwtPayload {
   userId: string;
   email: string;
   role: string;
+  department?: string; // Make department optional
 }
 
-export const signAccessToken = (payload: TokenPayload) => {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '15m' });
-};
+export function generateAccessToken(payload: JwtPayload): string {
+  //@ts-ignore
+  return jwt.sign(payload, JWT_SECRET, {
+    expiresIn: JWT_EXPIRES_IN,
+  });
+}
 
-export const signRefreshToken = (payload: TokenPayload) => {
-  return jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn: '7d' });
-};
-
-export const verifyAccessToken = (token: string) => {
+export function verifyAccessToken(token: string): JwtPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as TokenPayload;
-  } catch {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    // Type guard to ensure it's a JwtPayload
+    if (typeof decoded === 'object' && decoded !== null) {
+      const payload = decoded as any;
+      return {
+        userId: payload.userId || payload.id,
+        email: payload.email,
+        role: payload.role || 'user',
+        department: payload.department || 'general',
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('JWT verification error:', error);
     return null;
   }
-};
+}
 
-export const verifyRefreshToken = (token: string) => {
+// Helper function to verify and extract user data safely
+export function verifyAndExtractUser(token: string) {
   try {
-    return jwt.verify(token, JWT_REFRESH_SECRET) as TokenPayload;
-  } catch {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    if (typeof decoded === 'object' && decoded !== null) {
+      const payload = decoded as any;
+      return {
+        userId: payload.userId || payload.id,
+        email: payload.email,
+        role: payload.role || 'user',
+        department: payload.department || 'general',
+        name: payload.name,
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('JWT verification error:', error);
     return null;
   }
-};
+}

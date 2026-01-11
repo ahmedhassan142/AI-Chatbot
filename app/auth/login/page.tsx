@@ -20,38 +20,45 @@ export default function LoginPage() {
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError('');
+  e.preventDefault();
+  setIsLoading(true);
+  setError('');
 
-    try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
+  try {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData),
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Login failed');
+    if (!response.ok) {
+      // Check if it's a verification error
+      if (data.requiresVerification) {
+        // Redirect to verification pending page
+        router.push(`/auth/register/verification-pending?email=${encodeURIComponent(data.email)}`);
+        return;
       }
-
-      // Store access token in memory (not localStorage)
-      if (data.accessToken) {
-        // You would typically use React Context or Zustand for state management
-        sessionStorage.setItem('accessToken', data.accessToken);
-      }
-
-      router.push('/dashboard');
-      router.refresh();
-    } catch (error: any) {
-      setError(error.message);
-    } finally {
-      setIsLoading(false);
+      throw new Error(data.error || 'Login failed');
     }
-  };
 
+    // Store token and user data (API returns 'token', not 'accessToken')
+    if (data.token) {
+      sessionStorage.setItem('accessToken', data.token);
+      sessionStorage.setItem('userData', JSON.stringify(data.user));
+    }
+
+    console.log('✅ Login successful, redirecting to dashboard');
+    router.push('/dashboard');
+    router.refresh();
+  } catch (error: any) {
+    console.error('Login error:', error);
+    setError(error.message);
+  } finally {
+    setIsLoading(false);
+  }
+};
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30 flex items-center justify-center p-4">
       <div className="w-full max-w-md">

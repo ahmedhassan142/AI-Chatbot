@@ -36,9 +36,9 @@ export default function Footer() {
           <div className="lg:col-span-2">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg">
-                <span className="text-white font-bold text-xl">G</span>
+                <span className="text-white font-bold text-xl">C</span>
               </div>
-              <h3 className="text-2xl font-bold">Grok AI</h3>
+              <h3 className="text-2xl font-bold">Cystic AI</h3>
             </div>
             <p className="text-muted-foreground mb-6 max-w-md">
               Building the future of human-AI interaction. Our chatbot delivers intelligent,

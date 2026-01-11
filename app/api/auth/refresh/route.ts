@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { User } from '@/lib/models';
-import { verifyRefreshToken, signAccessToken } from '@/lib/auth';
+import { verifyAccessToken, generateAccessToken } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify refresh token
-    const decoded = verifyRefreshToken(refreshToken);
+    const decoded = verifyAccessToken(refreshToken);
     if (!decoded) {
       return NextResponse.json(
         { error: 'Invalid refresh token' },
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Generate new access token
-    const accessToken = signAccessToken({
+    const accessToken = generateAccessToken({
       userId: user._id.toString(),
       email: user.email,
       role: user.role,

@@ -13,7 +13,7 @@ import { Loader2, Mail, Lock, User, Eye, EyeOff, CheckCircle, AlertCircle, Shiel
 import { cn } from '@/lib/utils';
 
 export default function RegisterPage() {
-  const router = useRouter();
+ const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -125,21 +125,9 @@ export default function RegisterPage() {
         throw new Error(data.error || 'Registration failed');
       }
 
-      // Store user data and token
-      if (data.accessToken) {
-        sessionStorage.setItem('accessToken', data.accessToken);
-        sessionStorage.setItem('userData', JSON.stringify(data.user));
-      }
-
-      // Show success message and redirect
-      if (data.requiresVerification) {
-        // Redirect to verification pending page
-        router.push('/auth/register/verification-pending?email=' + encodeURIComponent(formData.email));
-      } else {
-        // Directly redirect to dashboard
-        router.push('/dashboard');
-        router.refresh();
-      }
+      // ALWAYS redirect to verification pending page after registration
+      // Don't store token or user data until email is verified
+      router.push(`/auth/register/verification-pending?email=${encodeURIComponent(formData.email)}`);
 
     } catch (error: any) {
       console.error('Registration error:', error);
@@ -148,7 +136,6 @@ export default function RegisterPage() {
       setIsLoading(false);
     }
   };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30 flex items-center justify-center p-4">
       <div className="w-full max-w-lg">

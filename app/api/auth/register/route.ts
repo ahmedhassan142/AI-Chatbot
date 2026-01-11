@@ -1,83 +1,99 @@
+// app/api/auth/register/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { User } from '@/lib/models';
 import bcrypt from 'bcryptjs';
+import { sendVerificationEmail } from '@/lib/email';
+import { generateVerificationToken } from '@/lib/token';
+import { User } from '@/lib/models';
+import mongoose from 'mongoose';
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    // Connect to database
-    await connectDB();
-    
-    // Get data from request
-    const { name, email, password, confirmPassword } = await req.json();
-    
-    // Basic validation
+    const { name, email, password, confirmPassword } = await request.json();
+
+    // Validate input
     if (!name || !email || !password || !confirmPassword) {
       return NextResponse.json(
         { error: 'All fields are required' },
         { status: 400 }
       );
     }
-    
+
     if (password !== confirmPassword) {
       return NextResponse.json(
         { error: 'Passwords do not match' },
         { status: 400 }
       );
     }
-    
-    if (password.length < 6) {
+
+    if (password.length < 8) {
       return NextResponse.json(
-        { error: 'Password must be at least 6 characters' },
+        { error: 'Password must be at least 8 characters' },
         { status: 400 }
       );
     }
-    
+
+    // Connect to database
+    if (mongoose.connection.readyState !== 1) {
+      await mongoose.connect(process.env.MONGODB_URI!);
+    }
+
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+
     if (existingUser) {
       return NextResponse.json(
-        { error: 'Email already exists' },
-        { status: 400 }
+        { error: 'User with this email already exists' },
+        { status: 409 }
       );
     }
-    
-    // Hash password manually
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-    
-    // Create user directly with hashed password
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Generate verification token
+    const verificationToken = generateVerificationToken();
+    const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Create user with correct fields - DON'T set emailVerified, let it be null
     const user = await User.create({
       name,
       email: email.toLowerCase(),
       password: hashedPassword,
+      role: 'user',
+      // emailVerified: null, // Don't set it, let it default to null
+      verificationToken,
+      verificationTokenExpires,
       createdAt: new Date(),
     });
-    
-    // Return success response
+
+    console.log(`✅ User created: ${user.email}, emailVerified: ${user.emailVerified}`);
+
+    // Send verification email
+    await sendVerificationEmail(user.email, user.name, verificationToken);
+
+    // Return success
     return NextResponse.json({
-      success: true,
-      message: 'Registration successful',
+      message: 'Registration successful. Please check your email to verify your account.',
+      requiresVerification: true,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
-      },
+      }
     });
-    
+
   } catch (error: any) {
-    console.error('Registration error:', error.message);
+    console.error('Registration error:', error);
     
-    // Handle duplicate email error
     if (error.code === 11000) {
       return NextResponse.json(
-        { error: 'Email already exists' },
-        { status: 400 }
+        { error: 'User with this email already exists' },
+        { status: 409 }
       );
     }
     
     return NextResponse.json(
-      { error: 'Registration failed' },
+      { error: 'An error occurred during registration: ' + error.message },
       { status: 500 }
     );
   }
