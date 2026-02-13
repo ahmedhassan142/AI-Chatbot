@@ -1,20 +1,13 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  /* config options here */
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  // DISABLE TURBOPACK - Force Webpack
+  turbopack: false,
   
-
+  // Use Webpack instead
+ 
+  // Other Next.js config
   
-  
-  // Disable TypeScript errors during build
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  /* config options here */
-
-
-
-
 };
 
-export default nextConfig;
+module.exports = nextConfig;
+ 

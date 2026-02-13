@@ -98,69 +98,45 @@ export default function ERPChatInterface() {
           messages: [...messages, userMessage].map(m => ({
             role: m.role,
             content: m.content,
-            department: m.department,
           })),
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to send message');
-
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let assistantMessage = '';
-
-      const assistantMessageObj: Message = {
-        id: (Date.now() + 1).toString(),
-        content: '',
-        role: 'assistant',
-        timestamp: new Date(),
-        department: 'assistant',
-      };
-
-      setMessages(prev => [...prev, assistantMessageObj]);
-
-      while (true) {
-        const { done, value } = await reader!.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') {
-              setIsLoading(false);
-              // Save to database
-              await saveConversation();
-              return;
-            }
-
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.choices?.[0]?.delta?.content) {
-                assistantMessage += parsed.choices[0].delta.content;
-                setMessages(prev =>
-                  prev.map(msg =>
-                    msg.id === assistantMessageObj.id
-                      ? { ...msg, content: assistantMessage }
-                      : msg
-                  )
-                );
-              }
-            } catch (e) {
-              // Continue processing
-            }
-          }
-        }
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to send message');
       }
-    } catch (error) {
+
+      // 🔥 FIX: Handle JSON response instead of stream
+      const data = await response.json();
+      
+      // Get the assistant's response from the JSON
+      const assistantContent = data.choices?.[0]?.message?.content || 
+                              data.choices?.[0]?.text || 
+                              'No response generated';
+      
+      // Add assistant message to chat
+      setMessages(prev => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          content: assistantContent,
+          role: 'assistant',
+          timestamp: new Date(),
+          department: 'assistant',
+        }
+      ]);
+      
+      // Save conversation to database
+      await saveConversation();
+
+    } catch (error:any) {
       console.error('Error:', error);
       setMessages(prev => [
         ...prev,
         {
           id: Date.now().toString(),
-          content: 'Sorry, I encountered an error. Please try again.',
+          content: error.message || 'Sorry, I encountered an error. Please try again.',
           role: 'assistant',
           timestamp: new Date(),
           department: 'system',
@@ -181,7 +157,7 @@ export default function ERPChatInterface() {
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          title: messages[messages.length - 2]?.content.substring(0, 50) || 'New Conversation',
+          title: messages[messages.length - 1]?.content.substring(0, 50) || 'New Conversation',
           messages: messages,
         }),
       });
@@ -196,7 +172,7 @@ export default function ERPChatInterface() {
 
   return (
     <div className="space-y-6">
-      {/* Header with Filters */}
+      {/* Header with Filters - KEEP EXACTLY AS IS */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
@@ -229,7 +205,7 @@ export default function ERPChatInterface() {
       </div>
 
       <div className="grid lg:grid-cols-4 gap-6">
-        {/* Quick Actions Panel */}
+        {/* Quick Actions Panel - KEEP EXACTLY AS IS */}
         <div className="lg:col-span-1 space-y-6">
           <Card className="border-2 border-dashed border-muted bg-gradient-to-b from-card to-card/50">
             <CardHeader>
@@ -253,7 +229,7 @@ export default function ERPChatInterface() {
             </CardContent>
           </Card>
 
-          {/* Stats */}
+          {/* Stats - KEEP EXACTLY AS IS */}
           <Card>
             <CardContent className="pt-6">
               <div className="space-y-4">
@@ -274,7 +250,7 @@ export default function ERPChatInterface() {
           </Card>
         </div>
 
-        {/* Main Chat Area */}
+        {/* Main Chat Area - KEEP EXACTLY AS IS except the message rendering */}
         <div className="lg:col-span-3">
           <Card className="h-[600px] flex flex-col border-2 shadow-xl">
             <CardHeader className="border-b">
@@ -286,7 +262,7 @@ export default function ERPChatInterface() {
                   <div>
                     <CardTitle>Enterprise AI Assistant</CardTitle>
                     <p className="text-sm text-muted-foreground">
-                      Powered by Grok • Real-time streaming • Department-aware
+                      Powered by Grok • Real-time • Department-aware
                     </p>
                   </div>
                 </div>
@@ -373,7 +349,7 @@ export default function ERPChatInterface() {
                 </div>
               </ScrollArea>
 
-              {/* Input Area */}
+              {/* Input Area - KEEP EXACTLY AS IS */}
               <form onSubmit={handleSubmit} className="p-6 border-t">
                 <div className="relative">
                   <Textarea
