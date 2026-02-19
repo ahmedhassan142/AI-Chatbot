@@ -46,7 +46,7 @@ import {
   SheetClose,
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import { useAuth } from '../../my-app/app/context/Authcontext';
+import { useAuth } from '@/app/context/Authcontext';
 
 export default function Header() {
   const router = useRouter();
