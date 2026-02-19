@@ -2,9 +2,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
-
 import { Avatar, AvatarFallback, AvatarImage } from '../../../components/ui/avatar';
 import { Badge } from '../../../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
@@ -20,199 +20,318 @@ import {
   Info,
   Users,
   Hash,
-  Pin,
-  AtSign,
   Image as ImageIcon,
   File,
   Mic,
   Check,
   CheckCheck,
   Clock,
+  Loader2,
+  MessageSquare,
+  Trash2,
+  Archive,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { useAuth } from '../../context/Authcontext';
+// import { toast } from '../../../components/ui/use-toast';
 
 interface Message {
   id: string;
-  text: string;
-  senderId: string;
-  timestamp: Date;
-  status: 'sent' | 'delivered' | 'read';
-  type: 'text' | 'image' | 'file';
+  content: string;
+  role: 'user' | 'assistant' | 'system';
+  timestamp: string;
+  department?: string;
 }
 
 interface Conversation {
-  id: string;
-  name: string;
-  type: 'direct' | 'group';
-  participants: User[];
-  lastMessage: string;
-  lastMessageTime: Date;
-  unreadCount: number;
-  avatar?: string;
-  online: boolean;
-}
-
-interface User {
-  id: string;
-  name: string;
-  avatar?: string;
-  role: string;
-  online: boolean;
+  _id: string;
+  title: string;
+  messages: Message[];
+  department: string;
+  tags: string[];
+  isArchived: boolean;
+  lastMessageAt: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export default function ChatPage() {
-  const [currentConversation, setCurrentConversation] = useState<string>('1');
+  const router = useRouter();
+  const { isAuthenticated, user } = useAuth();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState('all');
   const [message, setMessage] = useState('');
-  const [conversations, setConversations] = useState<Conversation[]>([
-    {
-      id: '1',
-      name: 'Engineering Team',
-      type: 'group',
-      participants: [
-        { id: '1', name: 'John Doe', role: 'Lead Developer', online: true },
-        { id: '2', name: 'Jane Smith', role: 'Frontend Dev', online: true },
-        { id: '3', name: 'Bob Johnson', role: 'Backend Dev', online: false },
-      ],
-      lastMessage: 'Let me check the API documentation',
-      lastMessageTime: new Date(Date.now() - 1000 * 60 * 5),
-      unreadCount: 3,
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Engineering',
-      online: true,
-    },
-    {
-      id: '2',
-      name: 'Alex Johnson',
-      type: 'direct',
-      participants: [
-        { id: '4', name: 'Alex Johnson', role: 'Project Manager', online: true },
-      ],
-      lastMessage: 'Can we schedule a meeting tomorrow?',
-      lastMessageTime: new Date(Date.now() - 1000 * 60 * 30),
-      unreadCount: 0,
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex',
-      online: true,
-    },
-    {
-      id: '3',
-      name: 'Design Team',
-      type: 'group',
-      participants: [
-        { id: '5', name: 'Sarah Miller', role: 'UI Designer', online: true },
-        { id: '6', name: 'Mike Wilson', role: 'UX Designer', online: false },
-      ],
-      lastMessage: 'The new mockups are ready for review',
-      lastMessageTime: new Date(Date.now() - 1000 * 60 * 60 * 2),
-      unreadCount: 5,
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Design',
-      online: true,
-    },
-    {
-      id: '4',
-      name: 'Marketing Team',
-      type: 'group',
-      participants: [
-        { id: '7', name: 'Lisa Brown', role: 'Marketing Head', online: false },
-        { id: '8', name: 'Tom Davis', role: 'Content Writer', online: true },
-      ],
-      lastMessage: 'Campaign performance report attached',
-      lastMessageTime: new Date(Date.now() - 1000 * 60 * 60 * 24),
-      unreadCount: 0,
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Marketing',
-      online: false,
-    },
-  ]);
-
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      text: 'Hey team! How is the progress on the new feature?',
-      senderId: '1',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60),
-      status: 'read',
-      type: 'text',
-    },
-    {
-      id: '2',
-      text: 'Going well! I have completed the UI components.',
-      senderId: '2',
-      timestamp: new Date(Date.now() - 1000 * 60 * 45),
-      status: 'read',
-      type: 'text',
-    },
-    {
-      id: '3',
-      text: 'I\'m working on the backend API integration.',
-      senderId: '3',
-      timestamp: new Date(Date.now() - 1000 * 60 * 30),
-      status: 'read',
-      type: 'text',
-    },
-    {
-      id: '4',
-      text: 'Great! Let me check the API documentation.',
-      senderId: '1',
-      timestamp: new Date(Date.now() - 1000 * 60 * 5),
-      status: 'delivered',
-      type: 'text',
-    },
-  ]);
-
+  const [sending, setSending] = useState(false);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    fetchConversations();
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [selectedConversation?.messages]);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+    }
+  }, [message]);
+
+  const fetchConversations = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/conversations', {
+        credentials: 'include',
+      });
+
+      const data = await response.json();
+      setConversations(data.conversations || []);
+      
+      if (data.conversations?.length > 0) {
+        setSelectedConversation(data.conversations[0]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch conversations:', error);
+      // toast({
+      //   title: 'Error',
+      //   description: 'Failed to load conversations',
+      //   variant: 'destructive',
+      // });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!message.trim() || !selectedConversation || sending) return;
+
+    const newMessage: Message = {
+      id: Date.now().toString(),
+      content: message,
+      role: 'user',
+      timestamp: new Date().toISOString(),
+    };
+
+    const updatedMessages = [...selectedConversation.messages, newMessage];
+    
+    // Optimistic update
+    setSelectedConversation({
+      ...selectedConversation,
+      messages: updatedMessages,
+    });
+    setMessage('');
+    setSending(true);
+
+    try {
+      // Get AI response
+      const chatResponse = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          messages: updatedMessages.map(m => ({
+            role: m.role,
+            content: m.content,
+          })),
+          authType: 'authenticated',
+        }),
+      });
+
+      if (!chatResponse.ok) {
+        throw new Error('Failed to get response');
+      }
+
+      const chatData = await chatResponse.json();
+      
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: chatData.choices?.[0]?.message?.content || 'No response',
+        role: 'assistant',
+        timestamp: new Date().toISOString(),
+      };
+
+      // Update conversation with assistant's response
+      const finalMessages = [...updatedMessages, assistantMessage];
+      
+      setSelectedConversation({
+        ...selectedConversation,
+        messages: finalMessages,
+      });
+
+      // Save to database
+      await fetch(`/api/conversations/${selectedConversation._id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          messages: finalMessages,
+        }),
+      });
+
+      // Refresh conversations list
+      fetchConversations();
+
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      // toast({
+      //   title: 'Error',
+      //   description: 'Failed to send message',
+      //   variant: 'destructive',
+      // });
+      
+      // Revert optimistic update
+      setSelectedConversation({
+        ...selectedConversation,
+        messages: selectedConversation.messages.slice(0, -1),
+      });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleNewConversation = async () => {
+    try {
+      const response = await fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          title: 'New Conversation',
+          messages: [],
+          //@ts-ignore
+          department: user?.department || 'general',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create conversation');
+      }
+
+      const data = await response.json();
+      setConversations([data.conversation, ...conversations]);
+      setSelectedConversation(data.conversation);
+    } catch (error) {
+      // toast({
+      //   title: 'Error',
+      //   description: 'Failed to create conversation',
+      //   variant: 'destructive',
+      // });
+    }
+  };
+
+  const handleDeleteConversation = async (conversationId: string) => {
+    try {
+      const response = await fetch(`/api/conversations/${conversationId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete conversation');
+      }
+
+      setConversations(conversations.filter(c => c._id !== conversationId));
+      if (selectedConversation?._id === conversationId) {
+        setSelectedConversation(conversations[0] || null);
+      }
+
+      // toast({
+      //   title: 'Success',
+      //   description: 'Conversation deleted',
+      // });
+    } catch (error) {
+      // toast({
+      //   title: 'Error',
+      //   description: 'Failed to delete conversation',
+      //   variant: 'destructive',
+      // });
+    }
+  };
+
+  const handleArchiveConversation = async (conversationId: string) => {
+    try {
+      const response = await fetch(`/api/conversations/${conversationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ isArchived: true }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to archive conversation');
+      }
+
+      setConversations(conversations.filter(c => c._id !== conversationId));
+      if (selectedConversation?._id === conversationId) {
+        setSelectedConversation(conversations[0] || null);
+      }
+
+      // toast({
+      //   title: 'Success',
+      //   description: 'Conversation archived',
+      // });
+    } catch (error) {
+    //   toast({
+    //     title: 'Error',
+    //     description: 'Failed to archive conversation',
+    //     variant: 'destructive',
+    //   });
+     }
+  };
+
+  const filteredConversations = conversations.filter(conv => {
+    const matchesSearch = conv.title.toLowerCase().includes(search.toLowerCase());
+    const matchesTab = activeTab === 'all' || 
+      (activeTab === 'unread' ? false : // Implement unread logic if needed
+       activeTab === 'archived' ? conv.isArchived : !conv.isArchived);
+    return matchesSearch && matchesTab;
+  });
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const handleSendMessage = () => {
-    if (message.trim()) {
-      const newMessage: Message = {
-        id: Date.now().toString(),
-        text: message,
-        senderId: 'current-user',
-        timestamp: new Date(),
-        status: 'sent',
-        type: 'text',
-      };
-      setMessages([...messages, newMessage]);
-      setMessage('');
+  const getStatusIcon = (role: string) => {
+    if (role === 'assistant') {
+      return <CheckCheck className="h-3 w-3" />;
     }
+    return <Check className="h-3 w-3" />;
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'sent':
-        return <Check className="h-3 w-3" />;
-      case 'delivered':
-        return <CheckCheck className="h-3 w-3" />;
-      case 'read':
-        return <CheckCheck className="h-3 w-3 text-blue-500" />;
-      default:
-        return <Clock className="h-3 w-3" />;
-    }
-  };
-
-  const currentConv = conversations.find(c => c.id === currentConversation);
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-12rem)]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+          <p className="mt-4 text-muted-foreground">Loading conversations...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-[calc(100vh-12rem)] flex flex-col">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Chat</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Chat History</h1>
           <p className="text-muted-foreground">
-            Communicate with your team in real-time
+            View and continue your AI conversations
           </p>
         </div>
-        <Button className="gap-2">
-          <Users className="h-4 w-4" />
-          New Group
+        <Button onClick={handleNewConversation} className="gap-2">
+          <MessageSquare className="h-4 w-4" />
+          New Conversation
         </Button>
       </div>
 
-      <div className="flex-1 flex border rounded-lg overflow-hidden">
+      <div className="flex-1 flex border rounded-lg overflow-hidden bg-card">
         {/* Sidebar */}
         <div className="hidden md:flex flex-col w-80 border-r">
           <div className="p-4 border-b">
@@ -220,64 +339,94 @@ export default function ChatPage() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search conversations..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="pl-10"
               />
             </div>
           </div>
 
-          <Tabs defaultValue="all" className="flex-1 flex flex-col">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
             <TabsList className="grid grid-cols-3 p-4 pt-0">
               <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="unread">Unread</TabsTrigger>
-              <TabsTrigger value="groups">Groups</TabsTrigger>
+              <TabsTrigger value="active">Active</TabsTrigger>
+              <TabsTrigger value="archived">Archived</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="all" className="flex-1 m-0">
+            <TabsContent value={activeTab} className="flex-1 m-0">
               <ScrollArea className="h-full">
                 <div className="p-2">
-                  {conversations.map(conv => (
-                    <div
-                      key={conv.id}
-                      className={`p-3 rounded-lg cursor-pointer transition-colors ${currentConversation === conv.id ? 'bg-muted' : 'hover:bg-muted/50'}`}
-                      onClick={() => setCurrentConversation(conv.id)}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="relative">
-                          <Avatar>
-                            <AvatarImage src={conv.avatar} />
+                  {filteredConversations.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p>No conversations found</p>
+                    </div>
+                  ) : (
+                    filteredConversations.map(conv => (
+                      <div
+                        key={conv._id}
+                        className={`p-3 rounded-lg cursor-pointer transition-colors group ${
+                          selectedConversation?._id === conv._id ? 'bg-muted' : 'hover:bg-muted/50'
+                        }`}
+                        onClick={() => setSelectedConversation(conv)}
+                      >
+                        <div className="flex items-start gap-3">
+                          <Avatar className="h-9 w-9">
                             <AvatarFallback>
-                              {conv.name.split(' ').map(n => n[0]).join('')}
+                              {conv.title.charAt(0).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
-                          {conv.online && (
-                            <div className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 border-2 border-background" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <p className="font-medium truncate">{conv.name}</p>
-                            <span className="text-xs text-muted-foreground">
-                              {formatDistanceToNow(conv.lastMessageTime, { addSuffix: true })}
-                            </span>
-                          </div>
-                          <p className="text-sm text-muted-foreground truncate">
-                            {conv.lastMessage}
-                          </p>
-                          {conv.type === 'group' && (
-                            <div className="flex items-center gap-1 mt-1">
-                              <Hash className="h-3 w-3" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <p className="font-medium truncate">{conv.title}</p>
                               <span className="text-xs text-muted-foreground">
-                                {conv.participants.length} members
+                                {formatDistanceToNow(new Date(conv.lastMessageAt || conv.updatedAt), { addSuffix: true })}
                               </span>
                             </div>
-                          )}
+                            <p className="text-sm text-muted-foreground truncate">
+                              {conv.messages[conv.messages.length - 1]?.content || 'No messages'}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge variant="outline" className="text-xs">
+                                {conv.department}
+                              </Badge>
+                              {conv.tags?.slice(0, 2).map(tag => (
+                                <Badge key={tag} variant="secondary" className="text-xs">
+                                  {tag}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                            {!conv.isArchived && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleArchiveConversation(conv._id);
+                                }}
+                              >
+                                <Archive className="h-3 w-3" />
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-red-600 hover:text-red-700"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteConversation(conv._id);
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </div>
-                        {conv.unreadCount > 0 && (
-                          <Badge className="ml-2">{conv.unreadCount}</Badge>
-                        )}
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </ScrollArea>
             </TabsContent>
@@ -285,125 +434,138 @@ export default function ChatPage() {
         </div>
 
         {/* Chat Area */}
-        <div className="flex-1 flex flex-col">
-          {/* Chat Header */}
-          <div className="p-4 border-b flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Avatar>
-                <AvatarImage src={currentConv?.avatar} />
-                <AvatarFallback>
-                  {currentConv?.name.split(' ').map(n => n[0]).join('')}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="font-semibold">{currentConv?.name}</h3>
-                <div className="flex items-center gap-2">
-                  {currentConv?.type === 'group' ? (
-                    <>
-                      <Badge variant="outline" className="text-xs">
-                        <Users className="h-3 w-3 mr-1" />
-                        {currentConv.participants.length} members
-                      </Badge>
-                      {currentConv.online && (
-                        <span className="text-xs text-green-600 flex items-center gap-1">
-                          <div className="h-2 w-2 rounded-full bg-green-500" />
-                          Online
-                        </span>
-                      )}
-                    </>
-                  ) : (
+        {selectedConversation ? (
+          <div className="flex-1 flex flex-col">
+            {/* Chat Header */}
+            <div className="p-4 border-b flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Avatar>
+                  <AvatarFallback>
+                    {selectedConversation.title.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="font-semibold">{selectedConversation.title}</h3>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      {selectedConversation.department}
+                    </Badge>
                     <span className="text-xs text-muted-foreground">
-                      {currentConv?.participants[0]?.role}
+                      {selectedConversation.messages.length} messages
                     </span>
-                  )}
+                  </div>
                 </div>
               </div>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="icon">
+                  <Info className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon">
-                <Phone className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon">
-                <Video className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon">
-                <Info className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
 
-          {/* Messages */}
-          <ScrollArea className="flex-1 p-4">
-            <div className="space-y-4">
-              {messages.map(msg => {
-                const isCurrentUser = msg.senderId === 'current-user';
-                const sender = isCurrentUser 
-                  ? { name: 'You', avatar: '' }
-                  : currentConv?.participants.find(p => p.id === msg.senderId);
-
-                return (
+            {/* Messages */}
+            <ScrollArea className="flex-1 p-4">
+              <div className="space-y-4">
+                {selectedConversation.messages.map((msg, index) => (
                   <div
-                    key={msg.id}
-                    className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
+                    key={msg.id || index}
+                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div className={`flex gap-3 max-w-[80%] ${isCurrentUser ? 'flex-row-reverse' : ''}`}>
-                      {!isCurrentUser && (
-                        <Avatar className="h-8 w-8 mt-1">
-                          <AvatarFallback>
-                            {sender?.name?.charAt(0) || 'U'}
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
-                      <div className={`rounded-lg px-4 py-2 ${isCurrentUser ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                        <p className="text-sm">{msg.text}</p>
-                        <div className={`flex items-center gap-1 mt-1 text-xs ${isCurrentUser ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
-                          <span>{formatDistanceToNow(msg.timestamp, { addSuffix: true })}</span>
-                          {isCurrentUser && (
-                            <span className="ml-2">
-                              {getStatusIcon(msg.status)}
-                            </span>
-                          )}
+                    <div className={`flex gap-3 max-w-[80%] ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                      <Avatar className="h-8 w-8 mt-1">
+                        <AvatarFallback>
+                          {msg.role === 'user' ? 'U' : 'AI'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className={`rounded-lg px-4 py-2 ${
+                        msg.role === 'user' 
+                          ? 'bg-primary text-primary-foreground' 
+                          : 'bg-muted'
+                      }`}>
+                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                        <div className={`flex items-center gap-1 mt-1 text-xs ${
+                          msg.role === 'user' ? 'text-primary-foreground/80' : 'text-muted-foreground'
+                        }`}>
+                          <span>{formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}</span>
+                          <span className="ml-2">
+                            {getStatusIcon(msg.role)}
+                          </span>
                         </div>
                       </div>
                     </div>
                   </div>
-                );
-              })}
-              <div ref={messagesEndRef} />
-            </div>
-          </ScrollArea>
+                ))}
+                {sending && (
+                  <div className="flex justify-start">
+                    <div className="flex gap-3">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback>AI</AvatarFallback>
+                      </Avatar>
+                      <div className="bg-muted rounded-lg px-4 py-2">
+                        <div className="flex gap-1">
+                          <div className="h-2 w-2 bg-current rounded-full animate-bounce [animation-delay:-0.3s]" />
+                          <div className="h-2 w-2 bg-current rounded-full animate-bounce [animation-delay:-0.15s]" />
+                          <div className="h-2 w-2 bg-current rounded-full animate-bounce" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+            </ScrollArea>
 
-          {/* Message Input */}
-          <div className="p-4 border-t">
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon">
-                <Paperclip className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon">
-                <ImageIcon className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon">
-                <File className="h-4 w-4" />
-              </Button>
-              <Input
-                placeholder="Type your message here..."
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                className="flex-1"
-              />
-              <Button variant="ghost" size="icon">
-                <Smile className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon">
-                <Mic className="h-4 w-4" />
-              </Button>
-              <Button onClick={handleSendMessage}>
-                <Send className="h-4 w-4" />
+            {/* Message Input */}
+            <div className="p-4 border-t">
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <textarea
+                    ref={textareaRef}
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                    placeholder="Type your message..."
+                    className="w-full min-h-[40px] max-h-[200px] px-3 py-2 rounded-lg border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                    rows={1}
+                    disabled={sending}
+                  />
+                </div>
+                <Button 
+                  onClick={handleSendMessage} 
+                  disabled={!message.trim() || sending}
+                  className="h-10 px-3"
+                >
+                  {sending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <MessageSquare className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-semibold">No conversation selected</h3>
+              <p className="text-muted-foreground mt-2">
+                Select a conversation from the sidebar or start a new one
+              </p>
+              <Button onClick={handleNewConversation} className="mt-4">
+                New Conversation
               </Button>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

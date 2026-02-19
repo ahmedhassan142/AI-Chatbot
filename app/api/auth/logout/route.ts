@@ -1,31 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '../../../../lib/db';
-import { User } from '../../../../lib/models';
+// app/api/auth/logout/route.ts
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 
-export async function POST(req: NextRequest) {
+export async function POST() {
   try {
-    await connectDB();
+    // AWAIT the cookies() promise
+    const cookieStore = await cookies();
     
-    const refreshToken = req.cookies.get('refreshToken')?.value;
+    // Clear the cookie
+    cookieStore.delete('token');
     
-    if (refreshToken) {
-      // Clear refresh token from database
-      await User.findOneAndUpdate(
-        { refreshToken },
-        { $unset: { refreshToken: 1 } }
-      );
-    }
-
-    const response = NextResponse.json({
-      message: 'Logout successful',
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Logged out successfully' 
     });
-
-    // Clear cookies
-    response.cookies.delete('refreshToken');
-    response.cookies.delete('accessToken');
-
-    return response;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Logout error:', error);
     return NextResponse.json(
       { error: 'Logout failed' },

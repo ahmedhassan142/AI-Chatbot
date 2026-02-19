@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
@@ -17,6 +18,16 @@ import {
   DialogTrigger,
 } from '../../../components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../../components/ui/alert-dialog';
+import {
   Search,
   UserPlus,
   MoreVertical,
@@ -28,97 +39,96 @@ import {
   Calendar,
   Filter,
   Download,
+  Loader2,
+  AlertCircle,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
 import { formatDate } from '../../../lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 
 interface User {
-  id: string;
+  _id: string;
   name: string;
   email: string;
   role: string;
   department: string;
-  status: 'active' | 'inactive' | 'pending';
-  lastLogin: string;
+  emailVerified: Date | null;
   createdAt: string;
-  avatar?: string;
+  updatedAt: string;
 }
 
 export default function UsersPage() {
+  const router = useRouter();
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
 
-  const roles = ['admin', 'manager', 'user', 'editor'];
-  const departments = ['Engineering', 'Sales', 'Marketing', 'HR', 'Finance', 'Support'];
-  const statuses = ['active', 'inactive', 'pending'];
+  const roles = ['admin', 'user'];
+  const departments = ['Engineering', 'Sales', 'Marketing', 'HR', 'Finance', 'Support', 'IT', 'Operations', 'general'];
+  const statuses = ['verified', 'pending'];
 
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      const mockUsers: User[] = [
-        {
-          id: '1',
-          name: 'John Doe',
-          email: 'john@example.com',
-          role: 'admin',
-          department: 'Engineering',
-          status: 'active',
-          lastLogin: '2024-01-15T10:30:00Z',
-          createdAt: '2023-12-01T09:00:00Z',
-          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=John',
-        },
-        {
-          id: '2',
-          name: 'Jane Smith',
-          email: 'jane@example.com',
-          role: 'manager',
-          department: 'Sales',
-          status: 'active',
-          lastLogin: '2024-01-14T14:20:00Z',
-          createdAt: '2023-11-15T10:00:00Z',
-          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Jane',
-        },
-        {
-          id: '3',
-          name: 'Bob Johnson',
-          email: 'bob@example.com',
-          role: 'user',
-          department: 'Marketing',
-          status: 'pending',
-          lastLogin: '2024-01-10T11:15:00Z',
-          createdAt: '2024-01-05T08:30:00Z',
-          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Bob',
-        },
-        {
-          id: '4',
-          name: 'Alice Brown',
-          email: 'alice@example.com',
-          role: 'editor',
-          department: 'HR',
-          status: 'active',
-          lastLogin: '2024-01-13T16:45:00Z',
-          createdAt: '2023-10-20T14:00:00Z',
-          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alice',
-        },
-        {
-          id: '5',
-          name: 'Charlie Wilson',
-          email: 'charlie@example.com',
-          role: 'user',
-          department: 'Finance',
-          status: 'inactive',
-          lastLogin: '2023-12-20T09:10:00Z',
-          createdAt: '2023-09-15T11:30:00Z',
-          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Charlie',
-        },
-      ];
-      setUsers(mockUsers);
-      setLoading(false);
-    }, 1000);
+    fetchUsers();
   }, []);
+
+  // In your users page, when calling the API
+const fetchUsers = async () => {
+  try {
+    setLoading(true);
+    setError(null);
+    const response = await fetch('/api/users', {
+      credentials: 'include', // This sends cookies automatically
+    });
+
+    if (!response.ok) {
+      if (response.status === 403) {
+        router.push('/');
+        return;
+      }
+      throw new Error('Failed to fetch users');
+    }
+
+    const data = await response.json();
+    setUsers(data.users || []);
+  } catch (err) {
+    setError(err instanceof Error ? err.message : 'Failed to load users');
+  } finally {
+    setLoading(false);
+  }
+};
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      const response = await fetch(`/api/users/${userId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete user');
+      }
+
+      setUsers(users.filter(u => u._id !== userId));
+      setSuccessMessage('User deleted successfully');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete user');
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setDeleteDialogOpen(false);
+      setSelectedUser(null);
+    }
+  };
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = 
@@ -127,35 +137,38 @@ export default function UsersPage() {
     
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
     const matchesDepartment = departmentFilter === 'all' || user.department === departmentFilter;
-    const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
+    const matchesStatus = statusFilter === 'all' || 
+      (statusFilter === 'verified' ? user.emailVerified : !user.emailVerified);
     
     return matchesSearch && matchesRole && matchesDepartment && matchesStatus;
   });
 
-  const getStatusBadge = (status: string) => {
-    const colors = {
-      active: 'bg-green-500/20 text-green-700 border-green-300',
-      inactive: 'bg-gray-500/20 text-gray-700 border-gray-300',
-      pending: 'bg-yellow-500/20 text-yellow-700 border-yellow-300',
-    };
-    
+  const getStatusBadge = (user: User) => {
+    if (user.emailVerified) {
+      return (
+        <Badge variant="outline" className="bg-green-500/20 text-green-700 border-green-300">
+          <CheckCircle className="h-3 w-3 mr-1" />
+          Verified
+        </Badge>
+      );
+    }
     return (
-      <Badge variant="outline" className={colors[status as keyof typeof colors]}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+      <Badge variant="outline" className="bg-yellow-500/20 text-yellow-700 border-yellow-300">
+        <AlertCircle className="h-3 w-3 mr-1" />
+        Pending
       </Badge>
     );
   };
 
   const getRoleBadge = (role: string) => {
     const colors = {
-      admin: 'bg-red-500/20 text-red-700',
-      manager: 'bg-blue-500/20 text-blue-700',
-      user: 'bg-green-500/20 text-green-700',
-      editor: 'bg-purple-500/20 text-purple-700',
+      admin: 'bg-red-500/20 text-red-700 border-red-300',
+      user: 'bg-blue-500/20 text-blue-700 border-blue-300',
     };
     
     return (
       <Badge variant="outline" className={colors[role as keyof typeof colors]}>
+        <Shield className="h-3 w-3 mr-1" />
         {role.charAt(0).toUpperCase() + role.slice(1)}
       </Badge>
     );
@@ -165,7 +178,7 @@ export default function UsersPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
           <p className="mt-4 text-muted-foreground">Loading users...</p>
         </div>
       </div>
@@ -174,6 +187,20 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6">
+      {/* Success/Error Messages */}
+      {successMessage && (
+        <div className="bg-green-500/10 text-green-700 border border-green-200 rounded-lg p-4 flex items-center gap-2">
+          <CheckCircle className="h-4 w-4" />
+          {successMessage}
+        </div>
+      )}
+      {error && (
+        <div className="bg-destructive/10 text-destructive border border-destructive/20 rounded-lg p-4 flex items-center gap-2">
+          <AlertCircle className="h-4 w-4" />
+          {error}
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
@@ -186,7 +213,7 @@ export default function UsersPage() {
             <Download className="h-4 w-4" />
             Export
           </Button>
-          <Dialog>
+          <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
             <DialogTrigger asChild>
               <Button className="gap-2">
                 <UserPlus className="h-4 w-4" />
@@ -197,7 +224,18 @@ export default function UsersPage() {
               <DialogHeader>
                 <DialogTitle>Add New User</DialogTitle>
               </DialogHeader>
-              <AddUserForm />
+              <AddUserForm 
+                onSuccess={(message) => {
+                  setAddDialogOpen(false);
+                  fetchUsers();
+                  setSuccessMessage(message);
+                  setTimeout(() => setSuccessMessage(null), 3000);
+                }}
+                onError={(message) => {
+                  setError(message);
+                  setTimeout(() => setError(null), 3000);
+                }}
+              />
             </DialogContent>
           </Dialog>
         </div>
@@ -248,11 +286,8 @@ export default function UsersPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                {statuses.map(status => (
-                  <SelectItem key={status} value={status}>
-                    {status.charAt(0).toUpperCase() + status.slice(1)}
-                  </SelectItem>
-                ))}
+                <SelectItem value="verified">Verified</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -281,18 +316,18 @@ export default function UsersPage() {
                   <TableHead>Role</TableHead>
                   <TableHead>Department</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Last Login</TableHead>
                   <TableHead>Joined</TableHead>
+                  <TableHead>Last Updated</TableHead>
                   <TableHead className="w-[120px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredUsers.map(user => (
-                  <TableRow key={user.id}>
+                  <TableRow key={user._id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-9 w-9">
-                          <AvatarImage src={user.avatar} />
+                          <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} />
                           <AvatarFallback>
                             {user.name.split(' ').map(n => n[0]).join('')}
                           </AvatarFallback>
@@ -310,27 +345,44 @@ export default function UsersPage() {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Building className="h-3 w-3 text-muted-foreground" />
-                        {user.department}
+                        {user.department || 'Not set'}
                       </div>
                     </TableCell>
-                    <TableCell>{getStatusBadge(user.status)}</TableCell>
+                    <TableCell>{getStatusBadge(user)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2 text-sm">
                         <Calendar className="h-3 w-3" />
-                        {formatDate(user.lastLogin)}
+                        {formatDate(user.createdAt)}
                       </div>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {formatDate(user.createdAt)}
+                      {formatDate(user.updatedAt)}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="icon">
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setEditDialogOpen(true);
+                          }}
+                        >
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {user._id !== currentUser?.id && (
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="text-red-600 hover:text-red-700"
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setDeleteDialogOpen(true);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button variant="ghost" size="icon">
                           <MoreVertical className="h-4 w-4" />
                         </Button>
@@ -343,30 +395,96 @@ export default function UsersPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {selectedUser?.name}'s account and all associated data.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => selectedUser && handleDeleteUser(selectedUser._id)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+          </DialogHeader>
+          {selectedUser && (
+            <EditUserForm 
+              user={selectedUser}
+              onSuccess={(updatedUser, message) => {
+                setEditDialogOpen(false);
+                setSelectedUser(null);
+                setUsers(users.map(u => u._id === updatedUser._id ? updatedUser : u));
+                setSuccessMessage(message);
+                setTimeout(() => setSuccessMessage(null), 3000);
+              }}
+              onError={(message) => {
+                setError(message);
+                setTimeout(() => setError(null), 3000);
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function AddUserForm() {
+function AddUserForm({ onSuccess, onError }: { onSuccess: (message: string) => void, onError: (message: string) => void }) {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
     role: 'user',
-    department: 'Engineering',
-    status: 'pending',
+    department: 'general',
   });
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle form submission
-    console.log('Form submitted:', formData);
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to create user');
+      }
+
+      onSuccess('User created successfully');
+    } catch (err: any) {
+      onError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 pt-4">
       <div className="space-y-2">
-        <label className="text-sm font-medium">Full Name</label>
+        <label className="text-sm font-medium">Full Name *</label>
         <Input
           placeholder="John Doe"
           value={formData.name}
@@ -375,7 +493,7 @@ function AddUserForm() {
         />
       </div>
       <div className="space-y-2">
-        <label className="text-sm font-medium">Email</label>
+        <label className="text-sm font-medium">Email *</label>
         <Input
           type="email"
           placeholder="john@company.com"
@@ -385,13 +503,14 @@ function AddUserForm() {
         />
       </div>
       <div className="space-y-2">
-        <label className="text-sm font-medium">Password</label>
+        <label className="text-sm font-medium">Password *</label>
         <Input
           type="password"
           placeholder="••••••••"
           value={formData.password}
           onChange={(e) => setFormData({ ...formData, password: e.target.value })}
           required
+          minLength={8}
         />
       </div>
       <div className="grid grid-cols-2 gap-4">
@@ -406,8 +525,6 @@ function AddUserForm() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="user">User</SelectItem>
-              <SelectItem value="editor">Editor</SelectItem>
-              <SelectItem value="manager">Manager</SelectItem>
               <SelectItem value="admin">Administrator</SelectItem>
             </SelectContent>
           </Select>
@@ -428,28 +545,123 @@ function AddUserForm() {
               <SelectItem value="HR">Human Resources</SelectItem>
               <SelectItem value="Finance">Finance</SelectItem>
               <SelectItem value="Support">Support</SelectItem>
+              <SelectItem value="IT">IT</SelectItem>
+              <SelectItem value="Operations">Operations</SelectItem>
+              <SelectItem value="general">General</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
+      <Button type="submit" className="w-full" disabled={loading}>
+        {loading ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Creating...
+          </>
+        ) : (
+          'Create User'
+        )}
+      </Button>
+    </form>
+  );
+}
+
+function EditUserForm({ user, onSuccess, onError }: { 
+  user: User, 
+  onSuccess: (user: User, message: string) => void, 
+  onError: (message: string) => void 
+}) {
+  const [formData, setFormData] = useState({
+    name: user.name,
+    role: user.role,
+    department: user.department || 'general',
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const response = await fetch(`/api/users/${user._id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to update user');
+      }
+
+      const data = await response.json();
+      onSuccess(data.user, 'User updated successfully');
+    } catch (err: any) {
+      onError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 pt-4">
       <div className="space-y-2">
-        <label className="text-sm font-medium">Status</label>
-        <Select
-          value={formData.status}
-          onValueChange={(value) => setFormData({ ...formData, status: value })}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="inactive">Inactive</SelectItem>
-          </SelectContent>
-        </Select>
+        <label className="text-sm font-medium">Full Name</label>
+        <Input
+          value={formData.name}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          required
+        />
       </div>
-      <Button type="submit" className="w-full">
-        Create User
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Role</label>
+          <Select
+            value={formData.role}
+            onValueChange={(value) => setFormData({ ...formData, role: value })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="user">User</SelectItem>
+              <SelectItem value="admin">Administrator</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Department</label>
+          <Select
+            value={formData.department}
+            onValueChange={(value) => setFormData({ ...formData, department: value })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Engineering">Engineering</SelectItem>
+              <SelectItem value="Sales">Sales</SelectItem>
+              <SelectItem value="Marketing">Marketing</SelectItem>
+              <SelectItem value="HR">Human Resources</SelectItem>
+              <SelectItem value="Finance">Finance</SelectItem>
+              <SelectItem value="Support">Support</SelectItem>
+              <SelectItem value="IT">IT</SelectItem>
+              <SelectItem value="Operations">Operations</SelectItem>
+              <SelectItem value="general">General</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <Button type="submit" className="w-full" disabled={loading}>
+        {loading ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Updating...
+          </>
+        ) : (
+          'Update User'
+        )}
       </Button>
     </form>
   );

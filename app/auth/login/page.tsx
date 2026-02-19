@@ -7,58 +7,70 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Label } from '../../../components/ui/label';
-import { LogIn, Mail, Lock, AlertCircle } from 'lucide-react';
+import { LogIn, Mail, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { Alert, AlertDescription } from '../../../components/ui/alert';
+
+import { useAuth } from '../../context/Authcontext';
+
 
 export default function LoginPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const { login: authLogin, refreshAuth } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setIsLoading(true);
-  setError('');
+   const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError('');
 
-  try {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData),
-    });
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+        credentials: 'include',
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok) {
-      // Check if it's a verification error
-      if (data.requiresVerification) {
-        // Redirect to verification pending page
-        router.push(`/auth/register/verification-pending?email=${encodeURIComponent(data.email)}`);
-        return;
+      if (!response.ok) {
+        if (data.requiresVerification) {
+          router.push(`/auth/register/verification-pending?email=${encodeURIComponent(data.email)}`);
+          return;
+        }
+        throw new Error(data.error || 'Login failed');
       }
-      throw new Error(data.error || 'Login failed');
-    }
 
-    // Store token and user data (API returns 'token', not 'accessToken')
-    if (data.token) {
-      sessionStorage.setItem('accessToken', data.token);
-      sessionStorage.setItem('userData', JSON.stringify(data.user));
-    }
+      // Update auth context
+      authLogin(data.token, data.user);
+      await refreshAuth();
 
-    console.log('✅ Login successful, redirecting to dashboard');
-    router.push('/dashboard');
-    router.refresh();
-  } catch (error: any) {
-    console.error('Login error:', error);
-    setError(error.message);
-  } finally {
-    setIsLoading(false);
-  }
-};
+      // Redirect based on role
+      if (data.user.role === 'admin') {
+        router.push('/dashboard');
+      } else {
+        router.push('/');
+      }
+      router.refresh();
+    } catch (error: any) {
+      console.error('Login error:', error);
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -126,15 +138,27 @@ export default function LoginPage() {
                   <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
                   <Input
                     id="password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
-                    className="pl-10 h-11 rounded-lg transition-all duration-200 focus:ring-2 focus:ring-primary/20"
+                    className="pl-10 pr-10 h-11 rounded-lg transition-all duration-200 focus:ring-2 focus:ring-primary/20"
                     value={formData.password}
                     onChange={(e) =>
                       setFormData({ ...formData, password: e.target.value })
                     }
                     required
                   />
+                  <button
+                    type="button"
+                    onClick={togglePasswordVisibility}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors focus:outline-none"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
                 </div>
               </div>
 

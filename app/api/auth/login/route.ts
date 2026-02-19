@@ -4,6 +4,7 @@ import { connectDB } from '../../../../lib/db';
 import { User } from '../../../../lib/models';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { cookies } from 'next/headers';
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    console.log(`📋 User ${email} verification status: ${user.emailVerified}`);
+    console.log(`📋 User ${email} - Role: ${user.role}, Verified: ${!!user.emailVerified}`);
     
     // Check if email is verified
     if (!user.emailVerified) {
@@ -49,30 +50,41 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    // Create JWT token
+    // Create JWT token with role
     const token = jwt.sign(
       { 
         userId: user._id.toString(),
         email: user.email,
-        role: user.role 
+        role: user.role,
+        name: user.name
       },
       process.env.JWT_SECRET || 'your-secret-key-change-this',
       { expiresIn: '7d' }
     );
     
-    console.log(`✅ Login successful for: ${email}`);
+    console.log(`✅ Login successful for: ${email} (Role: ${user.role})`);
     
-    // Return user data with token
+    // Set cookie
+    const cookieStore = await cookies();
+    cookieStore.set('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7,
+      path: '/',
+    });
+    
+    // Return user data with role
     return NextResponse.json({
       success: true,
       message: 'Login successful',
-      token, // Changed from accessToken to token
+      token,
       user: {
         id: user._id.toString(),
         name: user.name,
         email: user.email,
         role: user.role,
-        emailVerified: user.emailVerified,
+        emailVerified: !!user.emailVerified,
       },
     });
     

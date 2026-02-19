@@ -21,7 +21,10 @@ import {
   MessageSquare,
   CreditCard,
   Contact,
-  Zap
+  Zap,
+  X,
+  Shield,
+  UserCircle
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -40,264 +43,137 @@ import {
   Sheet,
   SheetContent,
   SheetTrigger,
+  SheetClose,
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
+import { useAuth } from '../../my-app/app/context/Authcontext';
 
 export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const { user, isAuthenticated, isAdmin, isUser, logout, isLoading } = useAuth();
   const [isDashboardPage, setIsDashboardPage] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Check if current page is dashboard
   useEffect(() => {
     setIsDashboardPage(pathname?.startsWith('/dashboard') || false);
   }, [pathname]);
 
-  // Check authentication status
-  useEffect(() => {
-    checkAuthStatus();
-  }, []);
-
-  const checkAuthStatus = () => {
-    const token = sessionStorage.getItem('accessToken');
-    const userData = sessionStorage.getItem('userData');
-    
-    if (token && userData) {
-      try {
-        const parsedUser = JSON.parse(userData);
-        setUser(parsedUser);
-        setIsLoggedIn(true);
-      } catch (error) {
-        console.error('Failed to parse user data:', error);
-        clearAuth();
-      }
-    } else {
-      clearAuth();
-    }
-  };
-
-  const clearAuth = () => {
-    setIsLoggedIn(false);
-    setUser(null);
-  };
-
-  const handleLogout = () => {
-    sessionStorage.removeItem('accessToken');
-    sessionStorage.removeItem('userData');
-    clearAuth();
-    
-    if (isDashboardPage) {
-      window.location.href = '/auth/login';
-    } else {
-      router.push('/auth/login');
-      router.refresh();
-    }
+  const handleLogout = async () => {
+    await logout();
+    setMobileMenuOpen(false);
   };
 
   const handleLogin = () => {
     router.push('/auth/login');
+    setMobileMenuOpen(false);
   };
 
   const handleSignup = () => {
     router.push('/auth/register');
+    setMobileMenuOpen(false);
   };
 
   const handleDashboard = () => {
     router.push('/dashboard');
+    setMobileMenuOpen(false);
+  };
+
+  const handleProfile = () => {
+    router.push('/profile');
+    setMobileMenuOpen(false);
+  };
+
+  const handleSettings = () => {
+    router.push('/settings');
+    setMobileMenuOpen(false);
   };
 
   const handleHome = () => {
     router.push('/');
+    setMobileMenuOpen(false);
   };
 
   const handleFeatures = () => {
     router.push('/features');
+    setMobileMenuOpen(false);
   };
 
   const handlePricing = () => {
     router.push('/pricing');
+    setMobileMenuOpen(false);
   };
 
   const handleContact = () => {
     router.push('/contact');
+    setMobileMenuOpen(false);
   };
 
-  // Navigation items for app pages (Home, Features, Pricing, Contact)
-  const appNavItems = [
+  const handleChat = () => {
+    router.push('/chat');
+    setMobileMenuOpen(false);
+  };
+
+  // Navigation items for all pages
+  const mainNavItems = [
     { name: 'Home', href: '/', icon: Home, onClick: handleHome },
     { name: 'Features', href: '/features', icon: Zap, onClick: handleFeatures },
     { name: 'Pricing', href: '/pricing', icon: CreditCard, onClick: handlePricing },
     { name: 'Contact', href: '/contact', icon: Contact, onClick: handleContact },
+    { name: 'AI Chat', href: '/chat', icon: MessageSquare, onClick: handleChat },
   ];
 
-  // Navigation items for dashboard sidebar (shown in mobile sheet)
-  const dashboardNavItems = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Users', href: '/dashboard/users', icon: User },
-    { name: 'Departments', href: '/dashboard/departments', icon: Building },
-    { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
-    { name: 'Calendar', href: '/dashboard/calendar', icon: Calendar },
-    { name: 'Chat', href: '/dashboard/chat', icon: MessageSquare },
-    { name: 'Settings', href: '/dashboard/settings', icon: Settings },
-  ];
+  // Determine if a nav item is active
+  const isActive = (href: string) => pathname === href;
 
-  // If we're on a dashboard page, show a simplified header (the sidebar will have the main navigation)
-  if (isDashboardPage) {
+  // Get role badge color
+  const getRoleBadge = () => {
+    if (isAdmin) {
+      return { color: 'bg-red-500/10 text-red-600 border-red-200', icon: Shield, text: 'Admin' };
+    } else if (isUser) {
+      return { color: 'bg-blue-500/10 text-blue-600 border-blue-200', icon: UserCircle, text: 'User' };
+    }
+    return { color: 'bg-gray-500/10 text-gray-600 border-gray-200', icon: UserCircle, text: 'Guest' };
+  };
+
+  const roleBadge = getRoleBadge();
+  const RoleIcon = roleBadge.icon;
+
+  // Get user display name safely
+  const getUserDisplayName = () => {
+    if (!user) return 'User';
+    return user.name || user.email?.split('@')[0] || 'User';
+  };
+
+  // Get user email safely
+  const getUserEmail = () => {
+    if (!user) return '';
+    return user.email || '';
+  };
+
+  // Get user avatar fallback
+  const getUserAvatarFallback = () => {
+    const name = getUserDisplayName();
+    return name.charAt(0).toUpperCase();
+  };
+
+  if (isLoading) {
     return (
-      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex h-16 items-center px-6">
-          {/* Mobile Menu Button for Dashboard */}
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="lg:hidden mr-4">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-64 p-0">
-              <div className="flex h-full flex-col">
-                {/* Logo */}
-                <div className="flex h-16 items-center justify-center border-b px-4">
-                  <h1 className="text-xl font-bold">ERP Dashboard</h1>
-                </div>
-
-                {/* Navigation */}
-                <nav className="flex-1 overflow-y-auto py-4">
-                  <div className="px-3 space-y-1">
-                    {dashboardNavItems.map((item) => {
-                      const Icon = item.icon;
-                      const isActive = pathname === item.href;
-                      
-                      return (
-                        <Button
-                          key={item.name}
-                          variant={isActive ? "secondary" : "ghost"}
-                          className="w-full justify-start gap-3"
-                          onClick={() => {
-                            router.push(item.href);
-                            // Close sheet after navigation
-                            //@ts-ignore
-                            document.querySelector('[data-state="open"]')?.click();
-                          }}
-                        >
-                          <Icon className="h-5 w-5" />
-                          <span>{item.name}</span>
-                        </Button>
-                      );
-                    })}
-                  </div>
-                </nav>
-
-                {/* User Info */}
-                {user && (
-                  <div className="border-t p-4">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback>
-                          {user.name?.charAt(0) || 'U'}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{user.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </SheetContent>
-          </Sheet>
-
-          <div className="flex flex-1 items-center space-x-4">
-            {/* Search - Only show on larger screens */}
-            <div className="w-full max-w-sm hidden lg:block">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search dashboard..."
-                  className="pl-10 bg-muted/50 border-none focus-visible:ring-0"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-4">
-            {/* Theme Toggle */}
-            <ThemeToggle />
-            
-            {/* Notifications */}
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-              <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-destructive" />
-            </Button>
-
-            {/* User Menu */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="gap-2 px-2">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email}`} />
-                    <AvatarFallback>
-                      {user?.name?.charAt(0) || 'U'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="hidden md:flex flex-col items-start">
-                    <span className="text-sm font-medium">{user?.name || 'User'}</span>
-                    <span className="text-xs text-muted-foreground capitalize">{user?.role || 'User'}</span>
-                  </div>
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <div className="flex flex-col">
-                    <span className="font-medium">{user?.name}</span>
-                    <span className="text-sm text-muted-foreground">{user?.email}</span>
-                    <Badge 
-                      variant={user?.emailVerified ? "default" : "destructive"} 
-                      className="mt-1 w-fit"
-                    >
-                      {user?.emailVerified ? 'Verified' : 'Not Verified'}
-                    </Badge>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => router.push('/dashboard/profile')}>
-                  <User className="mr-2 h-4 w-4" />
-                  Profile
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => router.push('/dashboard/settings')}>
-                  <Settings className="mr-2 h-4 w-4" />
-                  Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => router.push('/')}>
-                  <Home className="mr-2 h-4 w-4" />
-                  Back to Home
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Logout
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur">
+        <div className="container flex h-16 items-center justify-between px-4">
+          <div className="text-lg font-bold">ERP System</div>
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
         </div>
       </header>
     );
   }
 
-  // ========== LANDING PAGE HEADER (Non-dashboard pages) ==========
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between px-4">
-        {/* Left section */}
+        {/* Left section - Logo */}
         <div className="flex items-center gap-4">
-          {/* Logo/Brand */}
           <Button 
             variant="ghost" 
             className="text-lg font-bold p-0 hover:bg-transparent"
@@ -305,250 +181,320 @@ export default function Header() {
           >
             ERP System
           </Button>
+          
+          {/* Dashboard Badge - Only show on dashboard pages */}
+          {isDashboardPage && (
+            <Badge variant="default" className="bg-primary/10 text-primary border-primary/20">
+              Dashboard
+            </Badge>
+          )}
 
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-1 ml-6">
-            {appNavItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              
-              return (
-                <Button
-                  key={item.name}
-                  variant={isActive ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={item.onClick}
-                  className="gap-2"
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.name}
-                </Button>
-              );
-            })}
-          </nav>
+          {/* Role Badge - Show when logged in */}
+          {isAuthenticated && (
+            <Badge variant="outline" className={cn("hidden md:inline-flex", roleBadge.color)}>
+              <RoleIcon className="h-3 w-3 mr-1" />
+              {roleBadge.text}
+            </Badge>
+          )}
         </div>
+
+        {/* Desktop Navigation */}
+        <nav className="hidden md:flex items-center gap-1 flex-1 justify-center">
+          {mainNavItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Button
+                key={item.name}
+                variant={isActive(item.href) ? "secondary" : "ghost"}
+                size="sm"
+                onClick={item.onClick}
+                className="gap-2"
+              >
+                <Icon className="h-4 w-4" />
+                {item.name}
+              </Button>
+            );
+          })}
+        </nav>
 
         {/* Right section */}
         <div className="flex items-center gap-4">
-          {/* Theme Toggle */}
-          <ThemeToggle />
-          
-          {/* Search - Desktop only */}
+          {/* Search */}
           <div className="relative hidden lg:block">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search..."
+              placeholder={isDashboardPage ? "Search dashboard..." : "Search..."}
               className="pl-10 w-[250px]"
             />
           </div>
 
-          {isLoggedIn ? (
-            // ========== LOGGED IN STATE ==========
-            <>
-              {/* Dashboard button - visible on desktop */}
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleDashboard}
-                className="hidden md:flex items-center gap-2"
-              >
-                <LayoutDashboard size={16} />
-                Dashboard
-              </Button>
+          {/* Theme Toggle */}
+          <ThemeToggle />
+          
+          {/* Notifications - Only for logged in users */}
+          {isAuthenticated && (
+            <Button variant="ghost" size="icon" className="relative">
+              <Bell size={20} />
+              <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center">
+                3
+              </Badge>
+            </Button>
+          )}
 
-              {/* Notifications */}
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell size={20} />
-                <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center">
-                  3
-                </Badge>
-              </Button>
+          {/* User Menu / Auth Buttons */}
+          {isAuthenticated ? (
+            <div className="flex items-center gap-2">
+              {/* Dashboard Button - Only for ADMIN users */}
+              {isAdmin && (
+                <Button 
+                  variant="default" 
+                  size="sm" 
+                  onClick={handleDashboard}
+                  className="gap-2 hidden md:flex"
+                >
+                  <LayoutDashboard className="h-4 w-4" />
+                  Dashboard
+                </Button>
+              )}
 
-              {/* Profile dropdown */}
+              {/* Profile Dropdown - For ALL logged in users */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="rounded-full border">
-                    {user?.name?.charAt(0) || 'U'}
+                  <Button variant="ghost" className="gap-2 px-2">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${getUserEmail()}`} />
+                      <AvatarFallback>
+                        {getUserAvatarFallback()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="hidden md:flex flex-col items-start">
+                      <span className="text-sm font-medium">{getUserDisplayName()}</span>
+                      <span className="text-xs text-muted-foreground capitalize">{user?.role || 'User'}</span>
+                    </div>
+                    <ChevronDown className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel>
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">{user?.name || 'User'}</p>
+                      <p className="text-sm font-medium leading-none">{getUserDisplayName()}</p>
                       <p className="text-xs leading-none text-muted-foreground">
-                        {user?.role || 'User'} • {user?.email}
+                        {getUserEmail()}
                       </p>
+                      <Badge variant="outline" className={cn("mt-1 w-fit", roleBadge.color)}>
+                        <RoleIcon className="h-3 w-3 mr-1" />
+                        {roleBadge.text}
+                      </Badge>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleDashboard}>
-                    <LayoutDashboard className="mr-2 h-4 w-4" />
-                    Dashboard
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => router.push('/dashboard/profile')}>
+                  
+                  {/* Profile Link - For ALL users */}
+                  <DropdownMenuItem onClick={handleProfile}>
                     <User className="mr-2 h-4 w-4" />
                     Profile
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => router.push('/dashboard/settings')}>
+                  
+                  {/* Settings Link - For ALL users */}
+                  <DropdownMenuItem onClick={handleSettings}>
                     <Settings className="mr-2 h-4 w-4" />
                     Settings
                   </DropdownMenuItem>
+                  
+                  {/* Chat link for all users */}
+                  <DropdownMenuItem onClick={handleChat}>
+                    <MessageSquare className="mr-2 h-4 w-4" />
+                    AI Chat
+                  </DropdownMenuItem>
+                  
+                  {/* Dashboard Link - Additional dashboard link in dropdown for ADMIN users */}
+                  {isAdmin && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={handleDashboard}>
+                        <LayoutDashboard className="mr-2 h-4 w-4" />
+                        Go to Dashboard
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onClick={handleLogout}
-                    className="text-red-600 focus:text-red-600"
-                  >
+                  
+                  {/* Main navigation in dropdown */}
+                  <DropdownMenuItem onClick={handleHome}>
+                    <Home className="mr-2 h-4 w-4" />
+                    Home
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleFeatures}>
+                    <Zap className="mr-2 h-4 w-4" />
+                    Features
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handlePricing}>
+                    <CreditCard className="mr-2 h-4 w-4" />
+                    Pricing
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleContact}>
+                    <Contact className="mr-2 h-4 w-4" />
+                    Contact
+                  </DropdownMenuItem>
+                  
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="text-red-600">
                     <LogOut className="mr-2 h-4 w-4" />
                     Logout
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+            </div>
+          ) : (
+            <div className="hidden sm:flex items-center gap-3">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleLogin}
+                className="gap-2"
+              >
+                <LogIn size={16} />
+                Login
+              </Button>
+              <Button 
+                variant="default" 
+                size="sm" 
+                onClick={handleSignup}
+                className="gap-2"
+              >
+                <UserPlus size={16} />
+                Sign Up
+              </Button>
+            </div>
+          )}
 
-              {/* Mobile Menu */}
-              <Sheet>
-                <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon" className="md:hidden">
-                    <Menu size={20} />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent>
-                  <div className="flex flex-col gap-4">
-                    <div className="flex items-center gap-3 pb-4 border-b">
-                      <Avatar className="h-10 w-10">
-                        <AvatarFallback>
-                          {user?.name?.charAt(0) || 'U'}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium">{user?.name || 'User'}</p>
-                        <p className="text-sm text-muted-foreground">{user?.email}</p>
-                      </div>
-                    </div>
-                    
-                    {/* App Navigation Links */}
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground px-2">Navigation</p>
-                      {appNavItems.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = pathname === item.href;
-                        
-                        return (
-                          <Button
-                            key={item.name}
-                            variant={isActive ? "secondary" : "ghost"}
-                            className="w-full justify-start gap-2"
-                            onClick={item.onClick}
-                          >
-                            <Icon size={16} />
-                            {item.name}
-                          </Button>
-                        );
-                      })}
-                    </div>
-                    
-                    <div className="pt-2 border-t space-y-1">
-                      <Button 
-                        variant="outline" 
-                        className="w-full justify-start gap-2"
-                        onClick={handleDashboard}
-                      >
-                        <LayoutDashboard size={16} />
-                        Dashboard
-                      </Button>
-                      
-                      <Button 
-                        variant="ghost" 
-                        className="w-full justify-start gap-2"
-                        onClick={() => router.push('/dashboard/profile')}
-                      >
-                        <User size={16} />
-                        Profile
-                      </Button>
-                      
-                      <Button 
-                        variant="ghost" 
-                        className="w-full justify-start gap-2"
-                        onClick={() => router.push('/dashboard/settings')}
-                      >
-                        <Settings size={16} />
-                        Settings
-                      </Button>
-                      
-                      <div className="pt-2">
-                        <Button 
-                          variant="destructive" 
-                          className="w-full justify-start gap-2"
-                          onClick={handleLogout}
-                        >
-                          <LogOut size={16} />
-                          Logout
-                        </Button>
-                      </div>
+          {/* Mobile Menu Button */}
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="md:hidden">
+                <Menu size={20} />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[300px] sm:w-[400px]">
+              {/* Mobile menu content - same as before */}
+              <div className="flex flex-col h-full">
+                {/* Mobile Header with Close */}
+                <div className="flex items-center justify-between pb-4 border-b">
+                  <h2 className="text-lg font-semibold">Menu</h2>
+                  <SheetClose asChild>
+                    <Button variant="ghost" size="icon">
+                      <X size={20} />
+                    </Button>
+                  </SheetClose>
+                </div>
+
+                {/* User Info - Only if logged in */}
+                {isAuthenticated && user && (
+                  <div className="flex items-center gap-3 py-4 border-b">
+                    <Avatar className="h-10 w-10">
+                      <AvatarFallback>
+                        {getUserAvatarFallback()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-medium">{getUserDisplayName()}</p>
+                      <p className="text-sm text-muted-foreground">{getUserEmail()}</p>
+                      <Badge variant="outline" className={cn("mt-1", roleBadge.color)}>
+                        <RoleIcon className="h-3 w-3 mr-1" />
+                        {roleBadge.text}
+                      </Badge>
                     </div>
                   </div>
-                </SheetContent>
-              </Sheet>
-            </>
-          ) : (
-            // ========== NOT LOGGED IN STATE ==========
-            <>
-              <div className="flex items-center gap-3">
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={handleLogin}
-                  className="hidden sm:flex items-center gap-2"
-                >
-                  <LogIn size={16} />
-                  Login
-                </Button>
-                
-                <Button 
-                  variant="default" 
-                  size="sm" 
-                  onClick={handleSignup}
-                  className="flex items-center gap-2"
-                >
-                  <UserPlus size={16} />
-                  Sign Up
-                </Button>
-              </div>
+                )}
 
-              {/* Mobile Menu for non-logged in */}
-              <Sheet>
-                <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon" className="sm:hidden">
-                    <Menu size={20} />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent>
-                  <div className="flex flex-col gap-4">
-                    {/* App Navigation Links */}
-                    <div className="space-y-1">
-                      <p className="font-medium px-2">Navigation</p>
-                      {appNavItems.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = pathname === item.href;
-                        
-                        return (
-                          <Button
-                            key={item.name}
-                            variant={isActive ? "secondary" : "ghost"}
-                            className="w-full justify-start gap-2"
-                            onClick={item.onClick}
-                          >
-                            <Icon size={16} />
-                            {item.name}
-                          </Button>
-                        );
-                      })}
+                {/* Mobile Navigation Links */}
+                <div className="flex-1 overflow-y-auto py-4">
+                  {/* Main Navigation */}
+                  <div className="space-y-1 mb-4">
+                    <p className="text-sm font-medium text-muted-foreground px-2 mb-2">
+                      Navigation
+                    </p>
+                    {mainNavItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <Button
+                          key={item.name}
+                          variant={isActive(item.href) ? "secondary" : "ghost"}
+                          className="w-full justify-start gap-3"
+                          onClick={() => {
+                            item.onClick();
+                            setMobileMenuOpen(false);
+                          }}
+                        >
+                          <Icon className="h-5 w-5" />
+                          {item.name}
+                        </Button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Dashboard Section - Only for ADMIN users */}
+                  {isAuthenticated && isAdmin && (
+                    <div className="space-y-1 pt-4 border-t">
+                      <p className="text-sm font-medium text-muted-foreground px-2 mb-2">
+                        Admin
+                      </p>
+                      <Button
+                        variant={isActive('/dashboard') ? "secondary" : "ghost"}
+                        className="w-full justify-start gap-3"
+                        onClick={() => {
+                          handleDashboard();
+                          setMobileMenuOpen(false);
+                        }}
+                      >
+                        <LayoutDashboard className="h-5 w-5" />
+                        Dashboard
+                      </Button>
                     </div>
-                    
+                  )}
+
+                  {/* Profile Section - For ALL logged in users */}
+                  {isAuthenticated && (
+                    <div className="space-y-1 pt-4 border-t">
+                      <p className="text-sm font-medium text-muted-foreground px-2 mb-2">
+                        Account
+                      </p>
+                      <Button
+                        variant={isActive('/profile') ? "secondary" : "ghost"}
+                        className="w-full justify-start gap-3"
+                        onClick={() => {
+                          handleProfile();
+                          setMobileMenuOpen(false);
+                        }}
+                      >
+                        <User className="h-5 w-5" />
+                        Profile
+                      </Button>
+                      <Button
+                        variant={isActive('/settings') ? "secondary" : "ghost"}
+                        className="w-full justify-start gap-3"
+                        onClick={() => {
+                          handleSettings();
+                          setMobileMenuOpen(false);
+                        }}
+                      >
+                        <Settings className="h-5 w-5" />
+                        Settings
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Auth buttons for non-logged in users on mobile */}
+                  {!isAuthenticated && (
                     <div className="pt-4 border-t space-y-2">
                       <Button 
                         variant="outline" 
                         className="w-full justify-start gap-2"
-                        onClick={handleLogin}
+                        onClick={() => {
+                          handleLogin();
+                          setMobileMenuOpen(false);
+                        }}
                       >
                         <LogIn size={16} />
                         Login
@@ -557,34 +503,50 @@ export default function Header() {
                       <Button 
                         variant="default" 
                         className="w-full justify-start gap-2"
-                        onClick={handleSignup}
+                        onClick={() => {
+                          handleSignup();
+                          setMobileMenuOpen(false);
+                        }}
                       >
                         <UserPlus size={16} />
                         Sign Up
                       </Button>
                     </div>
-                  </div>
-                </SheetContent>
-              </Sheet>
-            </>
-          )}
+                  )}
+
+                  {/* Logout button for logged in users */}
+                  {isAuthenticated && (
+                    <div className="pt-4 border-t">
+                      <Button 
+                        variant="destructive" 
+                        className="w-full justify-start gap-2"
+                        onClick={handleLogout}
+                      >
+                        <LogOut size={16} />
+                        Logout
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
       </div>
 
-      {/* Mobile Dashboard button for logged in users (outside dashboard) */}
-      {isLoggedIn && !isDashboardPage && (
-        <div className="md:hidden border-t">
-          <div className="container px-4 py-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleDashboard}
-              className="w-full justify-center gap-2"
-            >
-              <LayoutDashboard size={16} />
-              Go to Dashboard
-            </Button>
-          </div>
+      {/* Mobile Dashboard indicator */}
+      {isDashboardPage && (
+        <div className="md:hidden bg-muted/30 px-4 py-1 text-xs text-muted-foreground border-t flex items-center justify-between">
+          <span className="flex items-center gap-1">
+            <LayoutDashboard className="h-3 w-3" />
+            Dashboard Mode
+          </span>
+          {isAdmin && (
+            <Badge variant="outline" className="text-xs bg-red-500/10">
+              <Shield className="h-3 w-3 mr-1" />
+              Admin
+            </Badge>
+          )}
         </div>
       )}
     </header>

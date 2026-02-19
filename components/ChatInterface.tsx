@@ -1,3 +1,4 @@
+// app/chat/page.tsx (or components/ERPChatInterface.tsx)
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -8,6 +9,7 @@ import { ScrollArea } from '../components/ui/scroll-area';
 import { Badge } from '../components/ui/badge';
 import {
   Send,
+  Shield,
   Bot,
   User,
   Paperclip,
@@ -17,8 +19,12 @@ import {
   Archive,
   Filter,
   Download,
+  LogIn,
+  UserCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '../app/context/Authcontext';
 
 interface Message {
   id: string;
@@ -30,6 +36,9 @@ interface Message {
 }
 
 export default function ERPChatInterface() {
+  const router = useRouter();
+  const { user, isAuthenticated, isAdmin, isUser } = useAuth();
+  
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -42,7 +51,13 @@ export default function ERPChatInterface() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [department, setDepartment] = useState('all');
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [authType, setAuthType] = useState<'authenticated' | 'guest' | 'loading'>('loading');
+  const [guestId, setGuestId] = useState<string | null>(null);
+  
+  // Refs for scrolling and textarea
+  const scrollViewportRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const departments = [
     { value: 'all', label: 'All', color: 'bg-muted' },
@@ -58,19 +73,72 @@ export default function ERPChatInterface() {
     { label: 'Data analysis', icon: Filter, prompt: 'Analyze customer satisfaction data' },
   ];
 
+  // Initialize guest session if needed
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    initializeSession();
+  }, [isAuthenticated]);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    scrollToBottom();
   }, [messages]);
+
+  // Auto-adjust textarea height
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+    }
+  }, [input]);
+
+  const initializeSession = () => {
+    if (isAuthenticated) {
+      setAuthType('authenticated');
+      setGuestId(null);
+      console.log('✅ Authenticated user detected:', user?.email);
+    } else {
+      let storedGuestId = sessionStorage.getItem('guestSessionId');
+      
+      if (!storedGuestId) {
+        storedGuestId = 'guest_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10);
+        sessionStorage.setItem('guestSessionId', storedGuestId);
+      }
+      
+      setGuestId(storedGuestId);
+      setAuthType('guest');
+      console.log('👤 Guest session:', storedGuestId);
+    }
+  };
+
+  const scrollToBottom = () => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'end'
+      });
+    }
+    
+    if (scrollViewportRef.current) {
+      scrollViewportRef.current.scrollTop = scrollViewportRef.current.scrollHeight;
+    }
+  };
+
+  const switchToLogin = () => {
+    router.push('/auth/login');
+  };
 
   const handleQuickAction = (prompt: string) => {
     setInput(prompt);
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    }, 100);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || authType === 'loading') return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -84,38 +152,50 @@ export default function ERPChatInterface() {
     setInput('');
     setIsLoading(true);
 
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+
     try {
-      // Get auth token from session storage
-      const token = sessionStorage.getItem('accessToken');
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      // Add auth header if authenticated, otherwise add guest ID
+      if (isAuthenticated) {
+        // Cookie is automatically sent with credentials: 'include'
+        // No need to manually add token header
+        console.log('🔑 Using authenticated request');
+      } else if (guestId) {
+        headers['X-Guest-ID'] = guestId;
+        console.log('👤 Using guest request with ID:', guestId);
+      }
       
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers,
+        credentials: isAuthenticated ? 'include' : 'omit', // Only send cookies if authenticated
         body: JSON.stringify({
           messages: [...messages, userMessage].map(m => ({
             role: m.role,
             content: m.content,
           })),
+          authType: isAuthenticated ? 'authenticated' : 'guest',
         }),
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to send message');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Error ${response.status}: Failed to send message`);
       }
 
-      // 🔥 FIX: Handle JSON response instead of stream
       const data = await response.json();
       
-      // Get the assistant's response from the JSON
       const assistantContent = data.choices?.[0]?.message?.content || 
                               data.choices?.[0]?.text || 
                               'No response generated';
       
-      // Add assistant message to chat
       setMessages(prev => [
         ...prev,
         {
@@ -127,11 +207,14 @@ export default function ERPChatInterface() {
         }
       ]);
       
-      // Save conversation to database
-      await saveConversation();
+      // Save conversation if authenticated
+      if (isAuthenticated) {
+        await saveConversation();
+      }
 
-    } catch (error:any) {
-      console.error('Error:', error);
+    } catch (error: any) {
+      console.error('Chat error:', error);
+      
       setMessages(prev => [
         ...prev,
         {
@@ -149,18 +232,24 @@ export default function ERPChatInterface() {
 
   const saveConversation = async () => {
     try {
-      const token = sessionStorage.getItem('accessToken');
-      await fetch('/api/conversations', {
+      const response = await fetch('/api/conversations', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
+        credentials: 'include',
         body: JSON.stringify({
           title: messages[messages.length - 1]?.content.substring(0, 50) || 'New Conversation',
           messages: messages,
         }),
       });
+
+      const data = await response.json();
+      if (data.saved) {
+        console.log('✅ Conversation saved successfully');
+      } else {
+        console.log('ℹ️ Conversation not saved:', data.message);
+      }
     } catch (error) {
       console.error('Failed to save conversation:', error);
     }
@@ -170,15 +259,46 @@ export default function ERPChatInterface() {
     ? messages 
     : messages.filter(m => m.department === department || !m.department);
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e);
+    }
+  };
+
+  if (authType === 'loading') {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+          <p className="mt-4 text-muted-foreground">Initializing chat...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {/* Header with Filters - KEEP EXACTLY AS IS */}
+      {/* Header with Auth Status */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
             AI Assistant
           </h1>
-          <p className="text-muted-foreground">Enterprise-grade AI support for your business</p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-muted-foreground">Enterprise-grade AI support</p>
+            {!isAuthenticated ? (
+              <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-200">
+                <UserCircle className="h-3 w-3 mr-1" />
+                Guest Mode
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">
+                <User className="h-3 w-3 mr-1" />
+                {isAdmin ? 'Admin' : 'Authenticated'}
+              </Badge>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex gap-2">
@@ -197,6 +317,12 @@ export default function ERPChatInterface() {
               </Button>
             ))}
           </div>
+          {!isAuthenticated && (
+            <Button variant="default" size="sm" onClick={switchToLogin}>
+              <LogIn className="mr-2 h-4 w-4" />
+              Sign In
+            </Button>
+          )}
           <Button variant="outline" size="sm">
             <Download className="mr-2 h-4 w-4" />
             Export
@@ -205,7 +331,7 @@ export default function ERPChatInterface() {
       </div>
 
       <div className="grid lg:grid-cols-4 gap-6">
-        {/* Quick Actions Panel - KEEP EXACTLY AS IS */}
+        {/* Quick Actions Panel */}
         <div className="lg:col-span-1 space-y-6">
           <Card className="border-2 border-dashed border-muted bg-gradient-to-b from-card to-card/50">
             <CardHeader>
@@ -229,7 +355,7 @@ export default function ERPChatInterface() {
             </CardContent>
           </Card>
 
-          {/* Stats - KEEP EXACTLY AS IS */}
+          {/* Stats */}
           <Card>
             <CardContent className="pt-6">
               <div className="space-y-4">
@@ -245,14 +371,25 @@ export default function ERPChatInterface() {
                   <span className="text-sm text-muted-foreground">User Satisfaction</span>
                   <span className="font-bold text-lg text-blue-600">94%</span>
                 </div>
+                {!isAuthenticated && (
+                  <div className="pt-2 text-xs text-center text-muted-foreground border-t">
+                    Guest conversations are temporary. <br />
+                    <button 
+                      onClick={switchToLogin}
+                      className="text-primary hover:underline"
+                    >
+                      Sign in
+                    </button> to save your history.
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Main Chat Area - KEEP EXACTLY AS IS except the message rendering */}
+        {/* Main Chat Area */}
         <div className="lg:col-span-3">
-          <Card className="h-[600px] flex flex-col border-2 shadow-xl">
+          <Card className="h-[calc(100vh-300px)] min-h-[600px] flex flex-col border-2 shadow-xl">
             <CardHeader className="border-b">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -262,104 +399,136 @@ export default function ERPChatInterface() {
                   <div>
                     <CardTitle>Enterprise AI Assistant</CardTitle>
                     <p className="text-sm text-muted-foreground">
-                      Powered by Grok • Real-time • Department-aware
+                      Powered by Grok • Real-time • {!isAuthenticated ? 'Guest Mode' : 'Secured'}
                     </p>
                   </div>
                 </div>
-                <Badge variant="outline" className="bg-primary/10 text-primary">
-                  {filteredMessages.length} messages
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="bg-primary/10 text-primary">
+                    {filteredMessages.length} messages
+                  </Badge>
+                  {isAuthenticated && user && (
+                    <Badge variant="outline" className={cn(
+                      "ml-2",
+                      isAdmin ? 'bg-red-500/10 text-red-600 border-red-200' : 'bg-blue-500/10 text-blue-600 border-blue-200'
+                    )}>
+                      {isAdmin ? (
+                        <><Shield className="h-3 w-3 mr-1" /> Admin</>
+                      ) : (
+                        <><UserCircle className="h-3 w-3 mr-1" /> {user.role}</>
+                      )}
+                    </Badge>
+                  )}
+                </div>
               </div>
             </CardHeader>
 
+            {/* Scrollable Chat Area */}
             <CardContent className="flex-1 p-0 overflow-hidden">
-              <ScrollArea className="h-[400px] p-6" ref={scrollRef}>
-                <div className="space-y-6">
-                  {filteredMessages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={cn(
-                        'flex gap-3 animate-in fade-in',
-                        message.role === 'user' ? 'flex-row-reverse' : ''
-                      )}
-                    >
+              <ScrollArea 
+                className="h-[calc(100vh-500px)] min-h-[400px]"
+                ref={scrollViewportRef}
+              >
+                <div className="p-6">
+                  <div className="space-y-6">
+                    {filteredMessages.map((message) => (
                       <div
+                        key={message.id}
                         className={cn(
-                          'flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center shadow-md',
-                          message.role === 'user'
-                            ? 'bg-gradient-to-br from-blue-500 to-blue-600'
-                            : 'bg-gradient-to-br from-primary to-primary/70'
+                          'flex gap-3 animate-in fade-in',
+                          message.role === 'user' ? 'flex-row-reverse' : ''
                         )}
                       >
-                        {message.role === 'user' ? (
-                          <User className="h-5 w-5 text-white" />
-                        ) : (
-                          <Bot className="h-5 w-5 text-white" />
-                        )}
-                      </div>
-                      <div
-                        className={cn(
-                          'max-w-[75%] rounded-2xl px-4 py-3 shadow-sm',
-                          message.role === 'user'
-                            ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-br-none'
-                            : 'bg-gradient-to-r from-muted to-muted/80 rounded-bl-none'
-                        )}
-                      >
-                        <div className="whitespace-pre-wrap">{message.content}</div>
                         <div
                           className={cn(
-                            'text-xs mt-2 flex items-center gap-2',
+                            'flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center shadow-md',
                             message.role === 'user'
-                              ? 'text-blue-200'
-                              : 'text-muted-foreground'
+                              ? 'bg-gradient-to-br from-blue-500 to-blue-600'
+                              : 'bg-gradient-to-br from-primary to-primary/70'
                           )}
                         >
-                          <span>
-                            {message.timestamp.toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
-                          {message.department && message.department !== 'user' && (
-                            <Badge
-                              variant="outline"
-                              className="text-xs px-1.5 py-0"
-                            >
-                              {message.department}
-                            </Badge>
+                          {message.role === 'user' ? (
+                            !isAuthenticated ? 
+                              <UserCircle className="h-5 w-5 text-white" /> : 
+                              <User className="h-5 w-5 text-white" />
+                          ) : (
+                            <Bot className="h-5 w-5 text-white" />
                           )}
                         </div>
-                      </div>
-                    </div>
-                  ))}
-                  {isLoading && (
-                    <div className="flex gap-3">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center">
-                        <Bot className="h-5 w-5 text-white" />
-                      </div>
-                      <div className="bg-gradient-to-r from-muted to-muted/80 rounded-2xl rounded-bl-none px-4 py-3">
-                        <div className="flex gap-2">
-                          <div className="h-2 w-2 bg-current rounded-full animate-bounce [animation-delay:-0.3s]" />
-                          <div className="h-2 w-2 bg-current rounded-full animate-bounce [animation-delay:-0.15s]" />
-                          <div className="h-2 w-2 bg-current rounded-full animate-bounce" />
+                        <div
+                          className={cn(
+                            'max-w-[75%] rounded-2xl px-4 py-3 shadow-sm',
+                            message.role === 'user'
+                              ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-br-none'
+                              : 'bg-gradient-to-r from-muted to-muted/80 rounded-bl-none'
+                          )}
+                        >
+                          <div className="whitespace-pre-wrap break-words">{message.content}</div>
+                          <div
+                            className={cn(
+                              'text-xs mt-2 flex items-center gap-2',
+                              message.role === 'user'
+                                ? 'text-blue-200'
+                                : 'text-muted-foreground'
+                            )}
+                          >
+                            <span>
+                              {message.timestamp.toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                            {message.department && message.department !== 'user' && (
+                              <Badge
+                                variant="outline"
+                                className="text-xs px-1.5 py-0"
+                              >
+                                {message.department}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    ))}
+                    {isLoading && (
+                      <div className="flex gap-3">
+                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center">
+                          <Bot className="h-5 w-5 text-white" />
+                        </div>
+                        <div className="bg-gradient-to-r from-muted to-muted/80 rounded-2xl rounded-bl-none px-4 py-3">
+                          <div className="flex gap-2">
+                            <div className="h-2 w-2 bg-current rounded-full animate-bounce [animation-delay:-0.3s]" />
+                            <div className="h-2 w-2 bg-current rounded-full animate-bounce [animation-delay:-0.15s]" />
+                            <div className="h-2 w-2 bg-current rounded-full animate-bounce" />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div ref={messagesEndRef} />
+                  </div>
                 </div>
               </ScrollArea>
+            </CardContent>
 
-              {/* Input Area - KEEP EXACTLY AS IS */}
-              <form onSubmit={handleSubmit} className="p-6 border-t">
+            {/* Input Area */}
+            <div className="border-t p-4">
+              <form onSubmit={handleSubmit}>
                 <div className="relative">
                   <Textarea
+                    ref={textareaRef}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder="Ask about sales data, customer issues, team tasks, or any business query..."
-                    className="min-h-[100px] pr-24 resize-none rounded-xl border-2 focus:border-primary/50 transition-all"
+                    onKeyDown={handleKeyDown}
+                    placeholder={
+                      !isAuthenticated 
+                        ? "Ask as guest... (Sign in to save conversations)" 
+                        : "Ask about sales data, customer issues, team tasks..."
+                    }
+                    className="min-h-[60px] max-h-[200px] pr-24 resize-none rounded-xl border-2 focus:border-primary/50 transition-all overflow-y-auto"
                     disabled={isLoading}
+                    rows={1}
                   />
-                  <div className="absolute right-3 bottom-3 flex items-center gap-2">
+                  <div className="absolute right-3 bottom-2 flex items-center gap-2">
                     <Button
                       type="button"
                       variant="ghost"
@@ -380,17 +549,19 @@ export default function ERPChatInterface() {
                       type="submit"
                       size="sm"
                       disabled={isLoading || !input.trim()}
-                      className="h-9 px-4 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-md"
+                      className="h-8 px-3 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-md"
                     >
                       <Send className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground mt-3 text-center">
-                  Enterprise data is encrypted and processed securely. All conversations are logged for compliance.
+                <p className="text-xs text-muted-foreground mt-2 text-center">
+                  {!isAuthenticated 
+                    ? 'Using guest session. Sign in to save your conversations.'
+                    : 'Enterprise data is encrypted and processed securely. Press Enter to send, Shift+Enter for new line.'}
                 </p>
               </form>
-            </CardContent>
+            </div>
           </Card>
         </div>
       </div>

@@ -1,27 +1,50 @@
+// app/api/conversations/route.ts - UPDATED WITH COOKIE AUTH
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '../../../lib/db';
 import { Conversation } from '../../../lib/models';
 import { verifyAccessToken } from '../../../lib/auth';
+import mongoose from 'mongoose';
+import { cookies } from 'next/headers';
 
-// GET conversations for authenticated user
+// GET conversations - Only for authenticated users, return empty for guests
 export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
-    const token = authHeader?.split(' ')[1];
+    let token = authHeader?.split(' ')[1];
     
+    // If no token in header, try to get from cookie
     if (!token) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
+      const cookieStore = await cookies();
+      token = cookieStore.get('token')?.value;
+    }
+    
+    // If no token, return empty conversations (guest mode)
+    if (!token) {
+      return NextResponse.json({
+        conversations: [],
+        pagination: {
+          page: 1,
+          limit: 20,
+          total: 0,
+          pages: 0,
+        },
+        message: 'Guest mode - no saved conversations',
+      });
     }
 
     const decoded = verifyAccessToken(token);
     if (!decoded) {
-      return NextResponse.json(
-        { error: 'Invalid token' },
-        { status: 401 }
-      );
+      // Token invalid but don't throw error - just return empty for guest
+      return NextResponse.json({
+        conversations: [],
+        pagination: {
+          page: 1,
+          limit: 20,
+          total: 0,
+          pages: 0,
+        },
+        message: 'Invalid token - guest mode',
+      });
     }
 
     await connectDB();
@@ -32,7 +55,20 @@ export async function GET(req: NextRequest) {
     const department = searchParams.get('department');
     const isArchived = searchParams.get('archived') === 'true';
     
-    const query: any = { userId: decoded.userId };
+    // Validate userId format
+    if (!mongoose.Types.ObjectId.isValid(decoded.userId)) {
+      return NextResponse.json({
+        conversations: [],
+        pagination: {
+          page: 1,
+          limit: 20,
+          total: 0,
+          pages: 0,
+        },
+      });
+    }
+    
+    const query: any = { userId: new mongoose.Types.ObjectId(decoded.userId) };
     
     if (department && department !== 'all') {
       query.department = department;
@@ -60,32 +96,54 @@ export async function GET(req: NextRequest) {
     });
   } catch (error: any) {
     console.error('Get conversations error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch conversations' },
-      { status: 500 }
-    );
+    // Return empty array instead of error for guest users
+    return NextResponse.json({
+      conversations: [],
+      pagination: {
+        page: 1,
+        limit: 20,
+        total: 0,
+        pages: 0,
+      },
+    });
   }
 }
 
-// Create new conversation
+// Create new conversation - Only for authenticated users
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
-    const token = authHeader?.split(' ')[1];
+    let token = authHeader?.split(' ')[1];
     
+    // If no token in header, try to get from cookie
     if (!token) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
+      const cookieStore = await cookies();
+      token = cookieStore.get('token')?.value;
+    }
+    
+    // If no token, just return success without saving (guest mode)
+    if (!token) {
+      return NextResponse.json({
+        message: 'Guest mode - conversation not saved',
+        saved: false,
+      });
     }
 
     const decoded = verifyAccessToken(token);
     if (!decoded) {
-      return NextResponse.json(
-        { error: 'Invalid token' },
-        { status: 401 }
-      );
+      // Token invalid but don't throw error
+      return NextResponse.json({
+        message: 'Invalid token - conversation not saved',
+        saved: false,
+      });
+    }
+
+    // Validate userId format
+    if (!mongoose.Types.ObjectId.isValid(decoded.userId)) {
+      return NextResponse.json({
+        message: 'Invalid user ID - conversation not saved',
+        saved: false,
+      });
     }
 
     const data = await req.json();
@@ -93,36 +151,43 @@ export async function POST(req: NextRequest) {
     await connectDB();
 
     const conversation = await Conversation.create({
-      userId: decoded.userId,
-      title: data.title,
-      messages: data.messages,
-      //@ts-ignore
+      userId: new mongoose.Types.ObjectId(decoded.userId),
+      title: data.title || 'New Conversation',
+      messages: data.messages || [],
       department: decoded.department || 'general',
       tags: data.tags || ['erp', 'chat'],
     });
 
     return NextResponse.json({
       message: 'Conversation saved',
+      saved: true,
       conversation,
     });
   } catch (error: any) {
     console.error('Save conversation error:', error);
-    return NextResponse.json(
-      { error: 'Failed to save conversation' },
-      { status: 500 }
-    );
+    // Don't throw error for guest users
+    return NextResponse.json({
+      message: 'Failed to save conversation',
+      saved: false,
+    });
   }
 }
 
-// Update conversation (archive, add tags, etc.)
+// Update conversation - Only for authenticated users
 export async function PATCH(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
-    const token = authHeader?.split(' ')[1];
+    let token = authHeader?.split(' ')[1];
+    
+    // If no token in header, try to get from cookie
+    if (!token) {
+      const cookieStore = await cookies();
+      token = cookieStore.get('token')?.value;
+    }
     
     if (!token) {
       return NextResponse.json(
-        { error: 'Authentication required' },
+        { error: 'Authentication required to update conversations' },
         { status: 401 }
       );
     }
@@ -135,12 +200,29 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
+    if (!mongoose.Types.ObjectId.isValid(decoded.userId)) {
+      return NextResponse.json(
+        { error: 'Invalid user ID format' },
+        { status: 400 }
+      );
+    }
+
     const { id, ...updates } = await req.json();
+    
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json(
+        { error: 'Invalid conversation ID format' },
+        { status: 400 }
+      );
+    }
     
     await connectDB();
 
     const conversation = await Conversation.findOneAndUpdate(
-      { _id: id, userId: decoded.userId },
+      { 
+        _id: new mongoose.Types.ObjectId(id), 
+        userId: new mongoose.Types.ObjectId(decoded.userId) 
+      },
       { $set: updates },
       { new: true }
     );
@@ -165,15 +247,21 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-// Delete conversation
+// Delete conversation - Only for authenticated users
 export async function DELETE(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
-    const token = authHeader?.split(' ')[1];
+    let token = authHeader?.split(' ')[1];
+    
+    // If no token in header, try to get from cookie
+    if (!token) {
+      const cookieStore = await cookies();
+      token = cookieStore.get('token')?.value;
+    }
     
     if (!token) {
       return NextResponse.json(
-        { error: 'Authentication required' },
+        { error: 'Authentication required to delete conversations' },
         { status: 401 }
       );
     }
@@ -186,6 +274,13 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
+    if (!mongoose.Types.ObjectId.isValid(decoded.userId)) {
+      return NextResponse.json(
+        { error: 'Invalid user ID format' },
+        { status: 400 }
+      );
+    }
+
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     
@@ -195,12 +290,19 @@ export async function DELETE(req: NextRequest) {
         { status: 400 }
       );
     }
+    
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json(
+        { error: 'Invalid conversation ID format' },
+        { status: 400 }
+      );
+    }
 
     await connectDB();
 
     const result = await Conversation.deleteOne({
-      _id: id,
-      userId: decoded.userId,
+      _id: new mongoose.Types.ObjectId(id),
+      userId: new mongoose.Types.ObjectId(decoded.userId),
     });
 
     if (result.deletedCount === 0) {

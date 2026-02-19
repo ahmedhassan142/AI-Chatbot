@@ -1,7 +1,8 @@
 // lib/auth.ts
 import jwt from 'jsonwebtoken';
+import { cookies } from 'next/headers';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'ac2a0fcf731e755942612d8e2baa838654e5fc2881ab542fc694dd0ed53177c3';
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
 export interface JwtPayload {
@@ -9,6 +10,7 @@ export interface JwtPayload {
   email: string;
   role: string;
   department?: string; // Make department optional
+  name?: string;
 }
 
 export function generateAccessToken(payload: JwtPayload): string {
@@ -30,6 +32,7 @@ export function verifyAccessToken(token: string): JwtPayload | null {
         email: payload.email,
         role: payload.role || 'user',
         department: payload.department || 'general',
+        name: payload.name,
       };
     }
     
@@ -59,6 +62,30 @@ export function verifyAndExtractUser(token: string) {
     return null;
   } catch (error) {
     console.error('JWT verification error:', error);
+    return null;
+  }
+}
+
+// Server-side function to get token from cookies (for API routes)
+export async function getTokenFromCookies() {
+  try {
+    const cookieStore = await cookies();
+    return cookieStore.get('token')?.value;
+  } catch (error) {
+    console.error('Error getting token from cookies:', error);
+    return null;
+  }
+}
+
+// Server-side function to get authenticated user from cookies
+export async function getAuthenticatedUser() {
+  try {
+    const token = await getTokenFromCookies();
+    if (!token) return null;
+    
+    return verifyAccessToken(token);
+  } catch (error) {
+    console.error('Error getting authenticated user:', error);
     return null;
   }
 }
