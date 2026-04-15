@@ -84,7 +84,6 @@ export async function POST(request: NextRequest) {
     const groqClient = new GroqClient(GROQ_API_KEY);
 
     // Get model info for context
-    //@ts-ignore
     const modelInfo = groqClient.getModelInfo(GROQ_MODEL);
     
     // Enhanced system message with model context
@@ -125,7 +124,6 @@ Remember: You're helping a business user make data-driven decisions.`
     
     // Make API call to Groq
     const response = await groqClient.chatCompletion(allMessages, {
-      //@ts-ignore
       model: GROQ_MODEL,
       stream: false,
       temperature: 0.7,
