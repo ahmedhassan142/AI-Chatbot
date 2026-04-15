@@ -5,7 +5,7 @@ const nextConfig = {
    
     ignoreBuildErrors: true,
   },
-  turbopack: false,
+
   
   // Use Webpack instead
  
