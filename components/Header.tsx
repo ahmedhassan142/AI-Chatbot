@@ -118,10 +118,10 @@ export default function Header() {
   // Navigation items for all pages
   const mainNavItems = [
     { name: 'Home', href: '/', icon: Home, onClick: handleHome },
-    { name: 'Features', href: '/features', icon: Zap, onClick: handleFeatures },
+    
     { name: 'Pricing', href: '/pricing', icon: CreditCard, onClick: handlePricing },
     { name: 'Contact', href: '/contact', icon: Contact, onClick: handleContact },
-    { name: 'AI Chat', href: '/chat', icon: MessageSquare, onClick: handleChat },
+    
   ];
 
   // Determine if a nav item is active

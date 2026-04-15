@@ -1,25 +1,36 @@
-// client.ts - Grok Client for OpenRouter API
-// Using your API key: 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
+// client.ts - Groq Client with Llama 7B Model
+// Uses GROQ_API_KEY from environment variables (NEVER hardcode)
 
-import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
+import axios, { AxiosInstance } from 'axios';
 
 // ==============================================
-// OPENROUTER CONFIGURATION - FREE API CREDITS
+// GROQ API CONFIGURATION - READ FROM ENV VARIABLES
 // ==============================================
 
-const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1';
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
+const GROQ_API_URL = 'https://api.groq.com/openai/v1';
+// ⚠️ CRITICAL: Never hardcode API keys - always use environment variables
+const GROQ_API_KEY = process.env.GROQ_API_KEY || process.env.NEXT_PUBLIC_GROQ_API_KEY || '';
 
-// Available Grok models on OpenRouter (from cheapest to most expensive)
-export const GrokModels = {
-  GROK_3_MINI: 'x-ai/grok-3-mini-beta',     // CHEAPEST: $0.30/1M tokens - recommended for most tasks
-  GROK_3: 'x-ai/grok-3-beta',               // $3.00/1M tokens - best reasoning
-  GROK_2_MINI: 'x-ai/grok-2-mini-beta',     // Legacy, slightly cheaper but slower
-  GROK_VISION: 'x-ai/grok-vision-beta',     // For image understanding
-  GROK_4: 'x-ai/grok-4'                     // Latest model
+// Available Llama models on Groq (with performance specs)
+export const GroqModels = {
+  // LLAMA 7B MODELS (Best for most tasks)
+  LLAMA_3_70B: 'llama3-70b-8192',           // Most powerful - 70B params
+  LLAMA_3_8B: 'llama3-8b-8192',             // Fast & efficient - 8B params
+  LLAMA_2_70B: 'llama2-70b-4096',           // Legacy 70B model
+  LLAMA_3_1_70B: 'llama-3.1-70b-versatile', // Latest Llama 3.1 70B
+  LLAMA_3_1_8B: 'llama-3.1-8b-instant',     // Latest Llama 3.1 8B (FASTEST)
+  
+  // MIXTRAL MODELS (Alternative)
+  MIXTRAL_8X7B: 'mixtral-8x7b-32768',       // MoE model, good for complex tasks
+  
+  // GEMMA MODELS (Lightweight)
+  GEMMA_2_9B: 'gemma2-9b-it',               // Google's 9B model
+  
+  // SPECIALIZED MODELS
+  LLAMA_GUARD: 'llama-guard-3-8b',          // Safety/Moderation model
 } as const;
 
-export type GrokModelType = typeof GrokModels[keyof typeof GrokModels];
+export type GroqModelType = typeof GroqModels[keyof typeof GroqModels];
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -27,77 +38,66 @@ export interface ChatMessage {
 }
 
 export interface ChatCompletionOptions {
-  model?: GrokModelType;
+  model?: GroqModelType;
   temperature?: number;
   maxTokens?: number;
+  topP?: number;
   stream?: boolean;
-  reasoningEffort?: 'high' | 'medium' | 'low';  // For Grok-3-mini
-  siteUrl?: string;    // Your site URL for OpenRouter ranking
-  siteName?: string;   // Your app name for OpenRouter ranking
+  stop?: string | string[];
+  frequencyPenalty?: number;
+  presencePenalty?: number;
 }
 
-export class GrokClient {
+export class GroqClient {
   private apiKey: string;
   private baseURL: string;
-  private defaultModel: GrokModelType;
+  private defaultModel: GroqModelType;
   private axiosInstance: AxiosInstance;
-  private siteUrl?: string;
-  private siteName?: string;
 
   /**
-   * Create a new GrokClient for OpenRouter
-   * @param apiKey - Your OpenRouter API key (get free at https://openrouter.ai/keys)
-   * @param siteUrl - Optional: Your website URL for OpenRouter leaderboard
-   * @param siteName - Optional: Your app name for OpenRouter leaderboard
+   * Create a new GroqClient for Llama models
+   * @param apiKey - Your Groq API key from https://console.groq.com/keys
    */
-  constructor(
-    apiKey: string = OPENROUTER_API_KEY,
-    siteUrl?: string,
-    siteName?: string
-  ) {
-    this.apiKey = apiKey;
-    this.baseURL = OPENROUTER_API_URL;
-    this.defaultModel = GrokModels.GROK_3_MINI; // Most cost-effective
-    this.siteUrl = siteUrl;
-    this.siteName = siteName;
+  constructor(apiKey?: string) {
+    this.apiKey = apiKey || GROQ_API_KEY;
+    
+    if (!this.apiKey) {
+      throw new Error(
+        'GROQ_API_KEY is not set. Please add it to your environment variables.\n' +
+        'Get your free API key at: https://console.groq.com/keys'
+      );
+    }
+    
+    this.baseURL = GROQ_API_URL;
+    this.defaultModel = GroqModels.LLAMA_3_1_8B; // Fastest 8B model by default
 
     // Create axios instance with default config
     this.axiosInstance = axios.create({
       baseURL: this.baseURL,
       timeout: 60000, // 60 seconds
-      headers: this.getHeaders()
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      }
     });
-  }
-
-  /**
-   * Get headers for OpenRouter API requests
-   */
-  private getHeaders(streaming: boolean = false): Record<string, string> {
-    const headers: Record<string, string> = {
-      'Authorization': `Bearer ${this.apiKey}`,
-      'Content-Type': 'application/json',
-    };
-
-    // Optional headers for OpenRouter leaderboard (helps track your app)
-    if (this.siteUrl) {
-      headers['HTTP-Referer'] = this.siteUrl;
-    }
-    if (this.siteName) {
-      headers['X-Title'] = this.siteName;
-    }
-
-    return headers;
   }
 
   /**
    * Set the default model for all requests
    */
-  setDefaultModel(model: GrokModelType): void {
+  setDefaultModel(model: GroqModelType): void {
     this.defaultModel = model;
   }
 
   /**
-   * Send a chat completion request to Grok via OpenRouter
+   * Get current default model
+   */
+  getDefaultModel(): GroqModelType {
+    return this.defaultModel;
+  }
+
+  /**
+   * Send a chat completion request to Groq (Llama models)
    */
   async chatCompletion(
     messages: ChatMessage[],
@@ -106,30 +106,28 @@ export class GrokClient {
     const {
       model = this.defaultModel,
       temperature = 0.7,
-      maxTokens = 1000,
+      maxTokens = 1024,
+      topP = 1,
       stream = false,
-      reasoningEffort,
-      siteUrl,
-      siteName
+      stop,
+      frequencyPenalty = 0,
+      presencePenalty = 0
     } = options;
-
-    // Update headers if site info provided in this request
-    if (siteUrl || siteName) {
-      this.siteUrl = siteUrl || this.siteUrl;
-      this.siteName = siteName || this.siteName;
-    }
 
     const requestData: any = {
       model,
       messages,
       temperature,
       max_tokens: maxTokens,
-      stream
+      top_p: topP,
+      stream,
+      frequency_penalty: frequencyPenalty,
+      presence_penalty: presencePenalty
     };
 
-    // Add reasoning effort for Grok-3-mini models (improves performance)
-    if (model.includes('mini') && reasoningEffort) {
-      requestData.reasoning = { effort: reasoningEffort };
+    // Add stop sequences if provided
+    if (stop) {
+      requestData.stop = stop;
     }
 
     try {
@@ -137,14 +135,13 @@ export class GrokClient {
         '/chat/completions',
         requestData,
         {
-          headers: this.getHeaders(stream),
           responseType: stream ? 'stream' : 'json'
         }
       );
 
       return response.data;
     } catch (error) {
-      console.error('OpenRouter API error:', error);
+      console.error('Groq API error:', error);
       throw this.handleError(error);
     }
   }
@@ -165,7 +162,8 @@ export class GrokClient {
     
     messages.push({ role: 'user', content: prompt });
 
-    return this.chatCompletion(messages, options);
+    const response = await this.chatCompletion(messages, options);
+    return response.choices[0]?.message?.content || '';
   }
 
   /**
@@ -178,8 +176,10 @@ export class GrokClient {
     const {
       model = this.defaultModel,
       temperature = 0.7,
-      maxTokens = 1000,
-      reasoningEffort
+      maxTokens = 1024,
+      topP = 1,
+      frequencyPenalty = 0,
+      presencePenalty = 0
     } = options;
 
     const requestData: any = {
@@ -187,44 +187,47 @@ export class GrokClient {
       messages,
       temperature,
       max_tokens: maxTokens,
-      stream: true
+      top_p: topP,
+      stream: true,
+      frequency_penalty: frequencyPenalty,
+      presence_penalty: presencePenalty
     };
-
-    if (model.includes('mini') && reasoningEffort) {
-      requestData.reasoning = { effort: reasoningEffort };
-    }
 
     try {
       const response = await this.axiosInstance.post(
         '/chat/completions',
         requestData,
         {
-          headers: this.getHeaders(true),
           responseType: 'stream'
         }
       );
 
       yield* this.processStream(response.data);
     } catch (error) {
-      console.error('OpenRouter stream error:', error);
+      console.error('Groq stream error:', error);
       throw this.handleError(error);
     }
   }
 
   /**
-   * Process streaming response from OpenRouter
+   * Process streaming response from Groq
    */
   private async *processStream(stream: any): AsyncGenerator<string, void, unknown> {
     const reader = stream.getReader();
     const decoder = new TextDecoder();
 
     try {
+      let buffer = '';
+      
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        
+        // Keep the last partial line in buffer
+        buffer = lines.pop() || '';
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
@@ -238,13 +241,8 @@ export class GrokClient {
             try {
               const parsed = JSON.parse(data);
               
-              // OpenRouter format
               if (parsed.choices?.[0]?.delta?.content) {
                 yield parsed.choices[0].delta.content;
-              }
-              // Alternative format for some models
-              else if (parsed.choices?.[0]?.text) {
-                yield parsed.choices[0].text;
               }
             } catch (e) {
               // Skip incomplete JSON chunks
@@ -259,20 +257,7 @@ export class GrokClient {
   }
 
   /**
-   * Check account balance and credits remaining
-   */
-  async checkCredits(): Promise<any> {
-    try {
-      const response = await this.axiosInstance.get('/auth/key');
-      return response.data;
-    } catch (error) {
-      console.error('Failed to check credits:', error);
-      throw this.handleError(error);
-    }
-  }
-
-  /**
-   * List available models (including Grok variants)
+   * Get available models from Groq
    */
   async listModels(): Promise<any> {
     try {
@@ -285,6 +270,36 @@ export class GrokClient {
   }
 
   /**
+   * Check if API key is valid
+   */
+  async testConnection(): Promise<boolean> {
+    try {
+      await this.listModels();
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Get model information and context window size
+   */
+  getModelInfo(model: GroqModelType): { contextWindow: number; description: string } {
+    const modelInfo = {
+      [GroqModels.LLAMA_3_70B]: { contextWindow: 8192, description: 'Most powerful Llama 3 70B model' },
+      [GroqModels.LLAMA_3_8B]: { contextWindow: 8192, description: 'Fast and efficient Llama 3 8B model' },
+      [GroqModels.LLAMA_2_70B]: { contextWindow: 4096, description: 'Legacy Llama 2 70B model' },
+      [GroqModels.LLAMA_3_1_70B]: { contextWindow: 8192, description: 'Latest Llama 3.1 70B - Versatile' },
+      [GroqModels.LLAMA_3_1_8B]: { contextWindow: 8192, description: 'Fastest Llama 3.1 8B - Instant responses' },
+      [GroqModels.MIXTRAL_8X7B]: { contextWindow: 32768, description: 'Mixtral MoE - Large context window' },
+      [GroqModels.GEMMA_2_9B]: { contextWindow: 8192, description: 'Google Gemma 2 9B - Lightweight' },
+      [GroqModels.LLAMA_GUARD]: { contextWindow: 8192, description: 'Llama Guard 3 - Content moderation' },
+    };
+    
+    return modelInfo[model] || { contextWindow: 4096, description: 'Unknown model' };
+  }
+
+  /**
    * Handle API errors with useful messages
    */
   private handleError(error: any): Error {
@@ -293,16 +308,19 @@ export class GrokClient {
       const data = error.response?.data;
       
       if (status === 401) {
-        return new Error('Invalid OpenRouter API key. Get a free key at https://openrouter.ai/keys');
-      }
-      if (status === 402) {
-        return new Error('Insufficient credits. Your free $5 credits may have expired. Sign up for a new account at https://openrouter.ai');
+        return new Error(
+          'Invalid Groq API key. Get your free key at: https://console.groq.com/keys\n' +
+          'Then add GROQ_API_KEY to your environment variables.'
+        );
       }
       if (status === 429) {
-        return new Error('Rate limit exceeded. Please try again later.');
+        return new Error('Rate limit exceeded. Groq free tier: 30 requests per minute. Please try again later.');
+      }
+      if (status === 503) {
+        return new Error('Groq service is busy. Models may be loading. Please retry in a few seconds.');
       }
       
-      return new Error(`OpenRouter API error (${status}): ${JSON.stringify(data)}`);
+      return new Error(`Groq API error (${status}): ${JSON.stringify(data)}`);
     }
     
     return error instanceof Error ? error : new Error(String(error));
@@ -310,41 +328,59 @@ export class GrokClient {
 }
 
 // ==============================================
-// SINGLETON EXPORT - Ready to use instantly
+// SINGLETON EXPORT - Uses environment variables
 // ==============================================
 
-// Create a pre-configured client with your API key
-export const grokClient = new GrokClient(
-  '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',
-  'http://localhost:3000', // Replace with your actual site URL
-  'MyGrokApp'              // Replace with your app name
-);
+// Create a configured client (reads API key from process.env)
+let groqClientInstance: GroqClient | null = null;
 
-// Set to most cost-effective model by default
-grokClient.setDefaultModel(GrokModels.GROK_3_MINI);
+export function getGroqClient(): GroqClient {
+  if (!groqClientInstance) {
+    groqClientInstance = new GroqClient();
+  }
+  return groqClientInstance;
+}
+
+// Export singleton for easy use
+export const groqClient = getGroqClient();
 
 // ==============================================
-// USAGE EXAMPLES (commented out)
+// USAGE EXAMPLES
 // ==============================================
 
 /*
-// EXAMPLE 1: Basic chat
+// EXAMPLE 1: Basic chat with Llama 7B (actually 8B model)
 async function basicExample() {
-  const response = await grokClient.chat(
+  const client = getGroqClient();
+  const response = await client.chat(
     'What is the capital of France?',
-    'You are a helpful geography assistant.'
+    'You are a helpful assistant.'
   );
-  console.log(response.choices[0].message.content);
+  console.log(response);
 }
 
-// EXAMPLE 2: Multi-turn conversation
+// EXAMPLE 2: Use specific Llama model
+async function modelExample() {
+  const client = getGroqClient();
+  const response = await client.chat(
+    'Explain quantum computing simply',
+    'You are a physics teacher',
+    { model: GroqModels.LLAMA_3_70B } // Use 70B for complex tasks
+  );
+  console.log(response);
+}
+
+// EXAMPLE 3: Multi-turn conversation
 async function conversationExample() {
+  const client = getGroqClient();
   const messages = [
     { role: 'system', content: 'You are a helpful coding assistant.' },
-    { role: 'user', content: 'Write a React component that displays a counter.' }
+    { role: 'user', content: 'Write a React component for a counter.' },
+    { role: 'assistant', content: 'Here is a counter component...' },
+    { role: 'user', content: 'Add a reset button to it.' }
   ];
   
-  const response = await grokClient.chatCompletion(messages, {
+  const response = await client.chatCompletion(messages, {
     temperature: 0.3,
     maxTokens: 2000
   });
@@ -352,10 +388,11 @@ async function conversationExample() {
   console.log(response.choices[0].message.content);
 }
 
-// EXAMPLE 3: Streaming
+// EXAMPLE 4: Streaming
 async function streamExample() {
-  const stream = grokClient.streamChat([
-    { role: 'user', content: 'Tell me a short joke.' }
+  const client = getGroqClient();
+  const stream = client.streamChat([
+    { role: 'user', content: 'Tell me a short story about AI.' }
   ]);
   
   for await (const token of stream) {
@@ -363,11 +400,12 @@ async function streamExample() {
   }
 }
 
-// EXAMPLE 4: Check your free credits
-async function checkBalance() {
-  const credits = await grokClient.checkCredits();
-  console.log('Remaining credits:', credits.credits);
+// EXAMPLE 5: Check available models
+async function listAvailableModels() {
+  const client = getGroqClient();
+  const models = await client.listModels();
+  console.log('Available models:', models.data.map((m: any) => m.id));
 }
 */
 
-export default grokClient;
+export default groqClient;

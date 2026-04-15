@@ -45,7 +45,7 @@ export default function ERPChatInterface() {
       content: 'Hello! I\'m your ERP AI assistant. I can help with sales data, customer support, task management, and more. How can I assist you today?',
       role: 'assistant',
       timestamp: new Date(),
-      department: 'support',
+      department: 'support', // ✅ Added department for filtering
     },
   ]);
   const [input, setInput] = useState('');
@@ -140,12 +140,13 @@ export default function ERPChatInterface() {
     e.preventDefault();
     if (!input.trim() || isLoading || authType === 'loading') return;
 
+    // 🔧 FIXED: Use selected department for user message
     const userMessage: Message = {
       id: Date.now().toString(),
       content: input.trim(),
       role: 'user',
       timestamp: new Date(),
-      department: 'user',
+      department: department === 'all' ? 'user' : department, // Use selected department
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -164,8 +165,6 @@ export default function ERPChatInterface() {
 
       // Add auth header if authenticated, otherwise add guest ID
       if (isAuthenticated) {
-        // Cookie is automatically sent with credentials: 'include'
-        // No need to manually add token header
         console.log('🔑 Using authenticated request');
       } else if (guestId) {
         headers['X-Guest-ID'] = guestId;
@@ -175,13 +174,14 @@ export default function ERPChatInterface() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers,
-        credentials: isAuthenticated ? 'include' : 'omit', // Only send cookies if authenticated
+        credentials: isAuthenticated ? 'include' : 'omit',
         body: JSON.stringify({
           messages: [...messages, userMessage].map(m => ({
             role: m.role,
             content: m.content,
           })),
           authType: isAuthenticated ? 'authenticated' : 'guest',
+          department: department, // Send selected department to API
         }),
       });
 
@@ -196,6 +196,7 @@ export default function ERPChatInterface() {
                               data.choices?.[0]?.text || 
                               'No response generated';
       
+      // 🔧 FIXED: Use same department for assistant response
       setMessages(prev => [
         ...prev,
         {
@@ -203,7 +204,7 @@ export default function ERPChatInterface() {
           content: assistantContent,
           role: 'assistant',
           timestamp: new Date(),
-          department: 'assistant',
+          department: department === 'all' ? 'assistant' : department, // Match the department
         }
       ]);
       
@@ -255,9 +256,17 @@ export default function ERPChatInterface() {
     }
   };
 
+  // 🔧 FIXED: Improved filtering logic
   const filteredMessages = department === 'all' 
     ? messages 
-    : messages.filter(m => m.department === department || !m.department);
+    : messages.filter(m => {
+        // Show messages that match selected department
+        if (m.department === department) return true;
+        // Also show system messages and errors
+        if (m.department === 'system') return true;
+        // For 'user' and 'assistant' departments, only show when 'all' is selected
+        return false;
+      });
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -399,7 +408,7 @@ export default function ERPChatInterface() {
                   <div>
                     <CardTitle>Enterprise AI Assistant</CardTitle>
                     <p className="text-sm text-muted-foreground">
-                      Powered by Grok • Real-time • {!isAuthenticated ? 'Guest Mode' : 'Secured'}
+                      Powered by Groq Llama • Real-time • {!isAuthenticated ? 'Guest Mode' : 'Secured'}
                     </p>
                   </div>
                 </div>
@@ -431,65 +440,78 @@ export default function ERPChatInterface() {
               >
                 <div className="p-6">
                   <div className="space-y-6">
-                    {filteredMessages.map((message) => (
-                      <div
-                        key={message.id}
-                        className={cn(
-                          'flex gap-3 animate-in fade-in',
-                          message.role === 'user' ? 'flex-row-reverse' : ''
-                        )}
-                      >
+                    {filteredMessages.length === 0 && department !== 'all' ? (
+                      // 🔧 ADDED: Empty state message
+                      <div className="text-center py-12">
+                        <Bot className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                        <p className="text-muted-foreground">
+                          No {department} conversations yet.
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-2">
+                          Select "All" to see all messages or start a new {department} conversation.
+                        </p>
+                      </div>
+                    ) : (
+                      filteredMessages.map((message) => (
                         <div
+                          key={message.id}
                           className={cn(
-                            'flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center shadow-md',
-                            message.role === 'user'
-                              ? 'bg-gradient-to-br from-blue-500 to-blue-600'
-                              : 'bg-gradient-to-br from-primary to-primary/70'
+                            'flex gap-3 animate-in fade-in',
+                            message.role === 'user' ? 'flex-row-reverse' : ''
                           )}
                         >
-                          {message.role === 'user' ? (
-                            !isAuthenticated ? 
-                              <UserCircle className="h-5 w-5 text-white" /> : 
-                              <User className="h-5 w-5 text-white" />
-                          ) : (
-                            <Bot className="h-5 w-5 text-white" />
-                          )}
-                        </div>
-                        <div
-                          className={cn(
-                            'max-w-[75%] rounded-2xl px-4 py-3 shadow-sm',
-                            message.role === 'user'
-                              ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-br-none'
-                              : 'bg-gradient-to-r from-muted to-muted/80 rounded-bl-none'
-                          )}
-                        >
-                          <div className="whitespace-pre-wrap break-words">{message.content}</div>
                           <div
                             className={cn(
-                              'text-xs mt-2 flex items-center gap-2',
+                              'flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center shadow-md',
                               message.role === 'user'
-                                ? 'text-blue-200'
-                                : 'text-muted-foreground'
+                                ? 'bg-gradient-to-br from-blue-500 to-blue-600'
+                                : 'bg-gradient-to-br from-primary to-primary/70'
                             )}
                           >
-                            <span>
-                              {message.timestamp.toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </span>
-                            {message.department && message.department !== 'user' && (
-                              <Badge
-                                variant="outline"
-                                className="text-xs px-1.5 py-0"
-                              >
-                                {message.department}
-                              </Badge>
+                            {message.role === 'user' ? (
+                              !isAuthenticated ? 
+                                <UserCircle className="h-5 w-5 text-white" /> : 
+                                <User className="h-5 w-5 text-white" />
+                            ) : (
+                              <Bot className="h-5 w-5 text-white" />
                             )}
                           </div>
+                          <div
+                            className={cn(
+                              'max-w-[75%] rounded-2xl px-4 py-3 shadow-sm',
+                              message.role === 'user'
+                                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-br-none'
+                                : 'bg-gradient-to-r from-muted to-muted/80 rounded-bl-none'
+                            )}
+                          >
+                            <div className="whitespace-pre-wrap break-words">{message.content}</div>
+                            <div
+                              className={cn(
+                                'text-xs mt-2 flex items-center gap-2',
+                                message.role === 'user'
+                                  ? 'text-blue-200'
+                                  : 'text-muted-foreground'
+                              )}
+                            >
+                              <span>
+                                {message.timestamp.toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                              {message.department && message.department !== 'user' && message.department !== 'assistant' && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs px-1.5 py-0"
+                                >
+                                  {message.department}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))
+                    )}
                     {isLoading && (
                       <div className="flex gap-3">
                         <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center">
@@ -520,9 +542,11 @@ export default function ERPChatInterface() {
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder={
-                      !isAuthenticated 
-                        ? "Ask as guest... (Sign in to save conversations)" 
-                        : "Ask about sales data, customer issues, team tasks..."
+                      department !== 'all'
+                        ? `Ask a ${department} question... (Filtering ${department} conversations)`
+                        : !isAuthenticated 
+                          ? "Ask as guest... (Sign in to save conversations)" 
+                          : "Ask about sales data, customer issues, team tasks..."
                     }
                     className="min-h-[60px] max-h-[200px] pr-24 resize-none rounded-xl border-2 focus:border-primary/50 transition-all overflow-y-auto"
                     disabled={isLoading}
@@ -556,6 +580,9 @@ export default function ERPChatInterface() {
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground mt-2 text-center">
+                  {department !== 'all' && (
+                    <span className="text-primary">Filtering {department} conversations. </span>
+                  )}
                   {!isAuthenticated 
                     ? 'Using guest session. Sign in to save your conversations.'
                     : 'Enterprise data is encrypted and processed securely. Press Enter to send, Shift+Enter for new line.'}
