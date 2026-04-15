@@ -8,7 +8,7 @@ import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 // ==============================================
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1';
-const OPENROUTER_API_KEY = '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';
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
 
 // Available Grok models on OpenRouter (from cheapest to most expensive)
 export const GrokModels = {
